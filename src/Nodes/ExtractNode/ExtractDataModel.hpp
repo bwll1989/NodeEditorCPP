@@ -11,7 +11,8 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
-#include "QGridLayout"
+#include <QGridLayout>
+#include <QCoreApplication>
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
@@ -37,7 +38,7 @@ namespace Nodes
             CaptionVisible=true;
             WidgetEmbeddable= false;
             Resizable=true;
-            widget->setPlaceholderText("JS Expression (e.g., \"$input['key']\")");
+            widget->setPlaceholderText(QCoreApplication::translate("Nodes::ExtractDataModel", "JS 表达式（如 \"$input['key']\"）"));
             connect(widget, &QLineEdit::editingFinished, this, &ExtractDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);
         }

@@ -17,6 +17,7 @@
 #include "QDateTime"
 #include <QSpacerItem>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 using namespace std;
 
 namespace Nodes
@@ -57,7 +58,7 @@ namespace Nodes
          * @param connected 连接状态
          */
         void updateConnectionStatus(bool connected) {
-            connectionStatusLabel->setText(connected?"状态: 已连接":"状态: 未连接");
+            connectionStatusLabel->setText(connected ? QCoreApplication::translate("Nodes::PJLinkInterface", "状态: 已连接") : QCoreApplication::translate("Nodes::PJLinkInterface", "状态: 未连接"));
             connectionStatusLabel->setStyleSheet(connected?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
             connectionStatusLabel->setChecked(connected);
         }
@@ -96,18 +97,18 @@ namespace Nodes
         }
 
     private:
-        QLabel *hostLabel = new QLabel("主机地址:");
-        QLabel *portLabel = new QLabel("端口:");
-        QLabel *passwordLabel = new QLabel("Password:");
+        QLabel *hostLabel = new QLabel(QCoreApplication::translate("Nodes::PJLinkInterface", "主机地址:"));
+        QLabel *portLabel = new QLabel(QCoreApplication::translate("Nodes::PJLinkInterface", "端口:"));
+        QLabel *passwordLabel = new QLabel(QCoreApplication::translate("Nodes::PJLinkInterface", "密码："));
     public:
-        QPushButton* powerOnButton = new QPushButton("PowerOn");
-        QPushButton* powerOffButton = new QPushButton("PowerOff");
-        QPushButton* muteOnButton = new QPushButton("MuteOn");
-        QPushButton* muteOffButton = new QPushButton("MuteOff");
+        QPushButton* powerOnButton = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "开机"));
+        QPushButton* powerOffButton = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "关机"));
+        QPushButton* muteOnButton = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "静音开"));
+        QPushButton* muteOffButton = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "静音关"));
         QLineEdit *passwordLineEdit = new QLineEdit("");
         IntDragValueWidget* portSpinBox = new IntDragValueWidget();
         QLineEdit *customCommandLineEdit = new QLineEdit("");
-        QPushButton* customCommandButton = new QPushButton("CustomCommand");
-        QPushButton *connectionStatusLabel = new QPushButton("Disconnect");
+        QPushButton* customCommandButton = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "自定义命令"));
+        QPushButton *connectionStatusLabel = new QPushButton(QCoreApplication::translate("Nodes::PJLinkInterface", "断开"));
     };
 }

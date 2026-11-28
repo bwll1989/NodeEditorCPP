@@ -16,6 +16,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QVariant>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -142,7 +143,7 @@ namespace Nodes
             if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
                 const QString preview = QString::fromUtf8(body.left(120)).trimmed();
                 emit requestFailed(
-                    QStringLiteral("JSON 解析失败 (HTTP %1): %2。片段: %3")
+                    QCoreApplication::translate("Nodes::SplayHttpClient", "JSON 解析失败 (HTTP %1): %2。片段: %3")
                         .arg(httpStatus)
                         .arg(parseError.errorString())
                         .arg(preview),

@@ -23,6 +23,7 @@
 
 #include <QBrush>
 #include <QColor>
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -260,7 +261,7 @@ namespace Nodes
             const QUrl url = QUrl::fromUserInput(apiRoot() + QStringLiteral("/timelines"));
             if (!url.isValid() || url.host().isEmpty()) {
                 setConnected(false);
-                setStatus(QStringLiteral("Invalid URL"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的 URL"));
                 return;
             }
 
@@ -270,14 +271,14 @@ namespace Nodes
             QNetworkReply *reply = m_manager->get(request);
             if (!reply) {
                 setConnected(false);
-                setStatus(QStringLiteral("查询失败"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "查询失败"));
                 return;
             }
 
             reply->setProperty("op", QStringLiteral("timelines"));
             m_pendingPoll = true;
             if (!m_connected) {
-                setStatus(QStringLiteral("正在连接..."));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "正在连接..."));
             }
         }
 
@@ -313,13 +314,13 @@ namespace Nodes
                         applyIndexToControl(index);
                     }
                 }
-                setStatus(QStringLiteral("Queued..."));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "已排队..."));
                 return;
             }
 
             syncParametersFromWidget();
             if (index < 0) {
-                setStatus(QStringLiteral("无效的时间轴序号"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的时间轴序号"));
                 publishDone(false);
                 return;
             }
@@ -330,7 +331,7 @@ namespace Nodes
 
             const QString timelineId = timelineIdAtIndex(index);
             if (timelineId.isEmpty()) {
-                setStatus(QStringLiteral("序号 %1 无对应时间轴").arg(index));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "序号 %1 无对应时间轴").arg(index));
                 publishDone(false);
                 return;
             }
@@ -339,7 +340,7 @@ namespace Nodes
                 + QStringLiteral("/timelines/") + percentEncode(timelineId)
                 + QStringLiteral("/play"));
             if (!url.isValid() || url.host().isEmpty()) {
-                setStatus(QStringLiteral("Invalid URL"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的 URL"));
                 publishDone(false);
                 return;
             }
@@ -351,7 +352,7 @@ namespace Nodes
             QNetworkReply *reply = m_manager->post(
                 request, QByteArrayLiteral("{}"));
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "请求失败"));
                 publishDone(false);
                 return;
             }
@@ -362,7 +363,7 @@ namespace Nodes
             m_pendingPlay = true;
             m_pendingIndex = -1;
             m_pendingUpdateIndex = true;
-            setStatus(QStringLiteral("切换 [%1] \"%2\"...").arg(index).arg(timelineId));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "切换 [%1] \"%2\"...").arg(index).arg(timelineId));
             AbstractDelegateModel::stateFeedBack("/play", true);
         }
 
@@ -372,14 +373,14 @@ namespace Nodes
             if (m_pendingPlay || m_pendingStop) {
                 m_resendStop = true;
                 m_resendPlay = false;
-                setStatus(QStringLiteral("Queued stop..."));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "停止已排队..."));
                 return;
             }
 
             syncParametersFromWidget();
             const QUrl url = QUrl::fromUserInput(apiRoot() + QStringLiteral("/playback/stop"));
             if (!url.isValid() || url.host().isEmpty()) {
-                setStatus(QStringLiteral("Invalid URL"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的 URL"));
                 publishDone(false);
                 return;
             }
@@ -390,14 +391,14 @@ namespace Nodes
 
             QNetworkReply *reply = m_manager->post(request, QByteArrayLiteral("{}"));
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "请求失败"));
                 publishDone(false);
                 return;
             }
 
             reply->setProperty("op", QStringLiteral("stop"));
             m_pendingStop = true;
-            setStatus(QStringLiteral("正在停止..."));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "正在停止..."));
             AbstractDelegateModel::stateFeedBack("/stop", true);
         }
 
@@ -408,14 +409,14 @@ namespace Nodes
 
             const QString timelineId = timelineIdAtIndex(m_index);
             if (timelineId.isEmpty()) {
-                setStatus(QStringLiteral("序号 %1 无对应时间轴，无法设置循环").arg(m_index));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "序号 %1 无对应时间轴，无法设置循环").arg(m_index));
                 return;
             }
 
             if (m_pendingLoopGet || m_pendingLoopPut) {
                 m_pendingLoopValue = loop;
                 m_resendLoop = true;
-                setStatus(QStringLiteral("Queued loop..."));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "循环设置已排队..."));
                 return;
             }
 
@@ -534,7 +535,7 @@ namespace Nodes
 
         void setStatus(const QString &text)
         {
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)
@@ -670,8 +671,8 @@ namespace Nodes
                 setConnected(false);
                 const QString msg = dataOrError.toObject().value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("连接失败")
-                              : QStringLiteral("连接失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "连接失败")
+                              : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "连接失败: %1").arg(msg));
                 scheduleNextPoll(false);
                 return;
             }
@@ -714,7 +715,7 @@ namespace Nodes
                     item->setData(kRoleLoop, obj.value(QStringLiteral("loop")).toBool());
 
                     const qint64 durationUs = static_cast<qint64>(obj.value(QStringLiteral("duration_us")).toDouble());
-                    QString tip = QStringLiteral("index=%1\nid=%2\n时长=%3s\nloop=%4")
+                    QString tip = QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "index=%1\nid=%2\n时长=%3s\nloop=%4")
                                       .arg(displayIndex)
                                       .arg(id)
                                       .arg(durationUs / 1000000)
@@ -743,7 +744,7 @@ namespace Nodes
             syncActiveHighlight();
             syncLoopFromList(m_index);
             scheduleNextPoll(true);
-            setStatus(QStringLiteral("已加载 %1 个时间轴").arg(loadedCount));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "已加载 %1 个时间轴").arg(loadedCount));
         }
 
         void handlePlayFinished(QNetworkReply *reply)
@@ -756,8 +757,8 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.toObject().value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("播放失败")
-                              : QStringLiteral("播放失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "播放失败")
+                              : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "播放失败: %1").arg(msg));
                 publishDone(false);
             } else {
                 // 优先用返回的 data.id
@@ -767,7 +768,7 @@ namespace Nodes
                     : idFromResp;
                 syncActiveHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("正在播放 \"%1\"").arg(m_activeTimelineId));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "正在播放 \"%1\"").arg(m_activeTimelineId));
             }
 
             flushQueuedControl();
@@ -783,14 +784,14 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.toObject().value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("停止失败")
-                              : QStringLiteral("停止失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "停止失败")
+                              : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "停止失败: %1").arg(msg));
                 publishDone(false);
             } else {
                 m_activeTimelineId.clear();
                 syncActiveHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("已停止"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "已停止"));
             }
 
             flushQueuedControl();
@@ -806,7 +807,7 @@ namespace Nodes
             const QUrl url = QUrl::fromUserInput(apiRoot()
                 + QStringLiteral("/timelines/") + percentEncode(timelineId));
             if (!url.isValid() || url.host().isEmpty()) {
-                setStatus(QStringLiteral("Invalid URL"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的 URL"));
                 flushLoopResend();
                 return;
             }
@@ -817,7 +818,7 @@ namespace Nodes
 
             QNetworkReply *reply = m_manager->get(request);
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "请求失败"));
                 flushLoopResend();
                 return;
             }
@@ -826,7 +827,7 @@ namespace Nodes
             reply->setProperty("loop", loop);
             reply->setProperty("timelineId", timelineId);
             m_pendingLoopGet = true;
-            setStatus(QStringLiteral("读取 \"%1\"...").arg(timelineId));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "读取 \"%1\"...").arg(timelineId));
         }
 
         void handleLoopGetFinished(QNetworkReply *reply)
@@ -840,15 +841,15 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.toObject().value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("读取时间轴失败")
-                              : QStringLiteral("读取时间轴失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "读取时间轴失败")
+                              : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "读取时间轴失败: %1").arg(msg));
                 flushLoopResend();
                 return;
             }
 
             QJsonObject doc = dataOrError.toObject();
             if (doc.value(QStringLiteral("readonly")).toBool()) {
-                setStatus(QStringLiteral("\"%1\" 为只读条目（.show/ini 装配），无法设置循环").arg(timelineId));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "\"%1\" 为只读条目（.show/ini 装配），无法设置循环").arg(timelineId));
                 flushLoopResend();
                 return;
             }
@@ -858,7 +859,7 @@ namespace Nodes
             const QUrl url = QUrl::fromUserInput(apiRoot()
                 + QStringLiteral("/timelines/") + percentEncode(timelineId));
             if (!url.isValid() || url.host().isEmpty()) {
-                setStatus(QStringLiteral("Invalid URL"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "无效的 URL"));
                 flushLoopResend();
                 return;
             }
@@ -870,7 +871,7 @@ namespace Nodes
             QNetworkReply *putReply = m_manager->put(
                 request, QJsonDocument(doc).toJson(QJsonDocument::Compact));
             if (!putReply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "请求失败"));
                 flushLoopResend();
                 return;
             }
@@ -879,7 +880,8 @@ namespace Nodes
             putReply->setProperty("loop", wantLoop);
             putReply->setProperty("timelineId", timelineId);
             m_pendingLoopPut = true;
-            setStatus(QStringLiteral("设置循环: %1...").arg(wantLoop ? QStringLiteral("开") : QStringLiteral("关")));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "设置循环: %1...")
+                          .arg(wantLoop ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "开") : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "关")));
         }
 
         void handleLoopPutFinished(QNetworkReply *reply)
@@ -895,7 +897,7 @@ namespace Nodes
                 // 乐观锁冲突：文档已被其他窗口修改，重读重写（有限次）
                 if (statusCode == 409 && m_loopRetries < kMaxLoopRetries) {
                     ++m_loopRetries;
-                    setStatus(QStringLiteral("文档已被修改，重读重试 (%1)...").arg(m_loopRetries));
+                    setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "文档已被修改，重读重试 (%1)...").arg(m_loopRetries));
                     QTimer::singleShot(0, this, [this, wantLoop, timelineId]() {
                         startLoopGet(timelineId, wantLoop);
                     });
@@ -903,16 +905,16 @@ namespace Nodes
                 }
                 const QString msg = dataOrError.toObject().value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("设置循环失败")
-                              : QStringLiteral("设置循环失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "设置循环失败")
+                              : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "设置循环失败: %1").arg(msg));
                 flushLoopResend();
                 return;
             }
 
             m_loopRetries = 0;
             applyLoopToControl(wantLoop, false);
-            setStatus(QStringLiteral("\"%1\" 循环: %2")
-                          .arg(timelineId, wantLoop ? QStringLiteral("开") : QStringLiteral("关")));
+            setStatus(QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "\"%1\" 循环: %2")
+                          .arg(timelineId, wantLoop ? QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "开") : QCoreApplication::translate("Nodes::FlowDisplayControllerDataModel", "关")));
             flushLoopResend();
         }
 

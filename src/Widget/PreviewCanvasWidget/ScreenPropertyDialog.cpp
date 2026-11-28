@@ -46,7 +46,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // 标题栏关闭按钮已随基类移除（2026-11-25 用户定案"彻底去掉"）——
     // 关闭走 Esc / 取消按钮
 
-    auto* form_box = new QGroupBox("画布位置与显示大小（像素）", this);
+    auto* form_box = new QGroupBox(tr("画布位置与显示大小（像素）"), this);
     auto* form     = new QFormLayout(form_box);
 
     // ---- 投影模式行+字段退役（2026-11-20 用户定案，不考虑兼容）：纯 2D
@@ -83,10 +83,10 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     h_->setSingleStep(10.0);
     h_->setValue(screen.h > 0 ? screen.h : 540.0);
 
-    form->addRow("位置 X：", x_);
-    form->addRow("位置 Y：", y_);
-    form->addRow("宽度：", w_);
-    form->addRow("高度：", h_);
+    form->addRow(tr("位置 X："), x_);
+    form->addRow(tr("位置 Y："), y_);
+    form->addRow(tr("宽度："), w_);
+    form->addRow(tr("高度："), h_);
 
     // ---- 三轴旋转（2026-11-20 用户定案：标题按轴命名 X/Y/Z，全 float）--
     // 轴语义与片段 Tween 旋转三维打包一致（ClipSchema v4 / TweenSection）：
@@ -120,9 +120,9 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     rotation_->setToolTip(tr("取景窗姿态：旋转 Z = 滚转（度，面内顺时针绕中心）\n"
                              "——竖屏/异形拼接取景窗。"));
 
-    form->addRow("旋转X：", rot_x_);
-    form->addRow("旋转Y：", rot_y_);
-    form->addRow("旋转Z：", rotation_);
+    form->addRow(tr("旋转X："), rot_x_);
+    form->addRow(tr("旋转Y："), rot_y_);
+    form->addRow(tr("旋转Z："), rotation_);
 
     // 【2026-11-18 定案】层级 z 行移除：Screen = 取景窗，无叠放语义
     //（模型字段已随 2026-11-20 清理删除；多屏重叠命中序 = 场景追加序）。
@@ -132,7 +132,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // pow(c,1/γ)。与片段级（片段属性面板 rgb_gain/gamma 行）在解算层
     // 合成（增益相乘、gamma 相乘）。1=默认（逐位历史行为）；gain=0 =
     // 该通道压黑；>1 提亮。实时链与几何字段同构（变化即下发）。
-    auto* grade_box = new QGroupBox("输出校色", this);
+    auto* grade_box = new QGroupBox(tr("输出校色"), this);
     auto* grade_form = new QFormLayout(grade_box);
 
     gain_r_ = new FloatDragValueWidget(grade_box);
@@ -164,10 +164,10 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     gamma_->setToolTip(tr("伽马指数：1.0=不校正；<1 画面变亮，>1 画面变暗\n"
                           "（c' = c^(1/γ)——补正显示端物理屏伽马偏差）。"));
 
-    grade_form->addRow("R 增益：", gain_r_);
-    grade_form->addRow("G 增益：", gain_g_);
-    grade_form->addRow("B 增益：", gain_b_);
-    grade_form->addRow("Gamma：", gamma_);
+    grade_form->addRow(tr("R 增益："), gain_r_);
+    grade_form->addRow(tr("G 增益："), gain_g_);
+    grade_form->addRow(tr("B 增益："), gain_b_);
+    grade_form->addRow(tr("Gamma："), gamma_);
 
     // ---- 几何八字段实时预览（2026-11-11 用户需求：调属性即时可见）--------
     // 旧语义只有 OK 才写回——editor 画布/display 输出都要等确认。现与 warp
@@ -225,26 +225,26 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // 环境下"经常搜不到"是固有属性（可靠性做不到手输的水准），交互复杂
     // 度又远超便利收益。绑定 = id + ip:port 手输一次（随工程保存）；
     // 连接成功后 display 经 RegisterAck 自动采用指派 id（无需预配置）。
-    auto* bind_box = new QGroupBox("显示端绑定", this);
+    auto* bind_box = new QGroupBox(tr("显示端绑定"), this);
     auto* bind_lay = new QVBoxLayout(bind_box);
     auto* bind_form = new QFormLayout;
     player_id_ = new QLineEdit(QString::fromStdString(screen.player_id),
                                bind_box);
-    player_id_->setPlaceholderText("显示端标识；连接后 display 自动采用");
-    bind_form->addRow("Player ID：", player_id_);
+    player_id_->setPlaceholderText(tr("显示端标识；连接后 display 自动采用"));
+    bind_form->addRow(tr("Player ID："), player_id_);
     host_ = new QLineEdit(QString::fromStdString(cur_host), bind_box);
-    host_->setPlaceholderText("显示端 IP（display 所在主机）");
-    bind_form->addRow("主机：", host_);
+    host_->setPlaceholderText(tr("显示端 IP（display 所在主机）"));
+    bind_form->addRow(tr("主机："), host_);
     port_ = new IntDragValueWidget(bind_box);
     port_->setRange(1, 65535);
     port_->setValue(cur_port);
-    bind_form->addRow("端口：", port_);
+    bind_form->addRow(tr("端口："), port_);
     // 配对码（2026-11-03 多 Editor 隔离）：与显示端 config.ini 的
     // [display] pairing_code 一致才接入；留空 = 不认证（默认零配置互通）
     pairing_code_ = new QLineEdit(QString::fromStdString(cur_pairing_code),
                                   bind_box);
-    pairing_code_->setPlaceholderText("留空不认证；填码须与显示端配置一致");
-    bind_form->addRow("配对码：", pairing_code_);
+    pairing_code_->setPlaceholderText(tr("留空不认证；填码须与显示端配置一致"));
+    bind_form->addRow(tr("配对码："), pairing_code_);
     bind_lay->addLayout(bind_form);
 
     auto* hint = new QLabel(
@@ -269,17 +269,17 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         auto* general_lay  = new QVBoxLayout(general_page);
         general_lay->addWidget(form_box);
         general_lay->addWidget(grade_box); // 输出校色（2026-11-20）
-        tabs->addTab(general_page, "通用");
+        tabs->addTab(general_page, tr("通用"));
 
         auto* geom_page = new QWidget(tabs);
         auto* geom_lay  = new QVBoxLayout(geom_page);
         geom_lay->addWidget(warp_panel_);
-        tabs->addTab(geom_page, "几何结构");
+        tabs->addTab(geom_page, tr("几何结构"));
 
         auto* bind_page = new QWidget(tabs);
         auto* bind_lay  = new QVBoxLayout(bind_page);
         bind_lay->addWidget(bind_box);
-        tabs->addTab(bind_page, "绑定");
+        tabs->addTab(bind_page, tr("绑定"));
     }
 
     bodyLayout()->addWidget(tabs); // 内容进统一弹窗内容区（按钮行基类已建）

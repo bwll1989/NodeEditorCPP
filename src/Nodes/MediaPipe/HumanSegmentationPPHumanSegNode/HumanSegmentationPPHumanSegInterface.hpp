@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QSpacerItem>
 #include <QWidget>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -25,15 +26,15 @@ public:
         MaxFpsFilter->setSingleStep(1);
         MaxFpsFilter->setDecimals(0);
         MaxFpsFilter->setValue(15);
-        main_layout->addWidget(new QLabel("最大帧率 (FPS):", this), 0, 0);
+        main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HumanSegmentationPPHumanSegInterface", "最大帧率 (FPS):"), this), 0, 0);
         main_layout->addWidget(MaxFpsFilter, 0, 1);
 
-        UseGpuCheck = new QCheckBox("使用 GPU (OpenCV CUDA DNN)", this);
+        UseGpuCheck = new QCheckBox(QCoreApplication::translate("Nodes::HumanSegmentationPPHumanSegInterface", "使用 GPU (OpenCV CUDA DNN)"), this);
         UseGpuCheck->setChecked(true);
         main_layout->addWidget(UseGpuCheck, 1, 0, 1, 2);
 
-        main_layout->addWidget(new QLabel("启停 (ENABLE 端口):", this), 2, 0);
-        EnableBtn = new QPushButton("启动分割", this);
+        main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HumanSegmentationPPHumanSegInterface", "启停 (ENABLE 端口):"), this), 2, 0);
+        EnableBtn = new QPushButton(QCoreApplication::translate("Nodes::HumanSegmentationPPHumanSegInterface", "启动分割"), this);
         EnableBtn->setCheckable(true);
         main_layout->addWidget(EnableBtn, 2, 1);
         main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);

@@ -13,6 +13,7 @@
 #include "QComboBox"
 #include "QVariant"
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 using namespace std;
 namespace Nodes
 {
@@ -56,13 +57,13 @@ namespace Nodes
         QGridLayout *main_layout=new QGridLayout(this);
         IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
-        QPushButton *sendButton=new QPushButton("Send");
+        QPushButton *sendButton=new QPushButton(QCoreApplication::translate("Nodes::WebSocketServerInterface", "发送"));
         QComboBox* format=new QComboBox();
         QComboBox* messageType=new QComboBox();
     private:
-        QLabel *portLabel=new QLabel("Port: ");
-        QLabel *valueLabel=new QLabel("Value: ");
-        QLabel *messageLabel=new QLabel("Message Type    ");
+        QLabel *portLabel=new QLabel(QCoreApplication::translate("Nodes::WebSocketServerInterface", "端口："));
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::WebSocketServerInterface", "值："));
+        QLabel *messageLabel=new QLabel(QCoreApplication::translate("Nodes::WebSocketServerInterface", "消息类型"));
 
         
     };

@@ -11,6 +11,7 @@
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include "ToFilePath.hpp"
 #include "ToTextFileInterface.hpp"
+#include <QCoreApplication>
 
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
@@ -216,7 +217,7 @@ public slots:
             return;
         }
         if (m_file.isEmpty()) {
-            updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
+            updateNodeState(QtNodes::NodeValidationState::State::Error, QCoreApplication::translate("Nodes::ToTextFileDataModel", "请设置输出文件名"));
             _widget->setRecording(false);
             return;
         }
@@ -296,7 +297,7 @@ private Q_SLOTS:
             return;
         }
         if (m_file.isEmpty()) {
-            updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
+            updateNodeState(QtNodes::NodeValidationState::State::Error, QCoreApplication::translate("Nodes::ToTextFileDataModel", "请设置输出文件名"));
             stopRecording();
             return;
         }
@@ -307,12 +308,12 @@ private Q_SLOTS:
         QFile file(outputPath);
         QString error;
         if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            error = QStringLiteral("无法写入文件: %1").arg(outputPath);
+            error = QCoreApplication::translate("Nodes::ToTextFileDataModel", "无法写入文件: %1").arg(outputPath);
         } else {
             const qint64 written = file.write(m_inVariable->toJsonString().toUtf8());
             file.close();
             if (written < 0) {
-                error = QStringLiteral("写入文件失败: %1").arg(outputPath);
+                error = QCoreApplication::translate("Nodes::ToTextFileDataModel", "写入文件失败: %1").arg(outputPath);
             }
         }
         m_saving = false;

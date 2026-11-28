@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "网页离屏渲染（Chromium/Edge 子进程 + CDP）"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "网页离屏渲染（Chromium/Edge 子进程 + CDP）")
 #define PLUGIN_TAG "Image"
 
 class DLL_EXPORT Plugin
@@ -31,7 +31,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; }
     QString version() const override { return PLUGIN_VERSION; }
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
     QString tag() const override { return PLUGIN_TAG; }
     bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry>& reg) override;

@@ -13,6 +13,7 @@
 #include <QPushButton>
 #include <QCheckBox>
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 // COCO数据集类别名称
 static const std::vector<std::string> classNames = {
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
@@ -59,7 +60,7 @@ class ObjectDetectionInterface final : public QWidget{
             ConfidenceFilter->setSingleStep(0.01);
             ConfidenceFilter->setDecimals(2);
             ConfidenceFilter->setValue(0.4);
-            main_layout->addWidget(new QLabel("置信度阈值:", this), 0, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "置信度阈值:"), this), 0, 0);
             main_layout->addWidget(ConfidenceFilter, 0, 1);
 
             ClassSelectorComboBox = new QComboBox(this);
@@ -67,7 +68,7 @@ class ObjectDetectionInterface final : public QWidget{
                 ClassSelectorComboBox->addItem(QString::fromStdString(name));
             }
             ClassSelectorComboBox->setCurrentIndex(0);
-            main_layout->addWidget(new QLabel("检测对象:", this), 1, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "检测对象:"), this), 1, 0);
             main_layout->addWidget(ClassSelectorComboBox, 1, 1);
 
             MaxFpsFilter = new FloatDragValueWidget(this);
@@ -75,15 +76,15 @@ class ObjectDetectionInterface final : public QWidget{
             MaxFpsFilter->setSingleStep(1);
             MaxFpsFilter->setDecimals(0);
             MaxFpsFilter->setValue(15);
-            main_layout->addWidget(new QLabel("最大帧率 (FPS):", this), 2, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "最大帧率 (FPS):"), this), 2, 0);
             main_layout->addWidget(MaxFpsFilter, 2, 1);
 
-            DrawOverlayCheck = new QCheckBox("绘制检测框 (关闭可降 CPU)", this);
+            DrawOverlayCheck = new QCheckBox(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "绘制检测框 (关闭可降 CPU)"), this);
             DrawOverlayCheck->setChecked(true);
             main_layout->addWidget(DrawOverlayCheck, 3, 0, 1, 2);
 
-            main_layout->addWidget(new QLabel("启停 (ENABLE 端口):", this), 4, 0);
-            EnableBtn = new QPushButton("启动检测", this);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "启停 (ENABLE 端口):"), this), 4, 0);
+            EnableBtn = new QPushButton(QCoreApplication::translate("Nodes::ObjectDetectionInterface", "启动检测"), this);
             EnableBtn->setCheckable(true);
             main_layout->addWidget(EnableBtn, 4, 1);
             main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);

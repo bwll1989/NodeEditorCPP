@@ -17,6 +17,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QCheckBox>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -40,24 +41,24 @@ namespace Nodes
             };
 
             hostEdit->setText(QStringLiteral("192.168.1.13"));
-            hostEdit->setPlaceholderText(QStringLiteral("IP 或 IP:端口，如 127.0.0.1:8080"));
+            hostEdit->setPlaceholderText(QCoreApplication::translate("Nodes::SPlayControllerInterface", "IP 或 IP:端口，如 127.0.0.1:8080"));
 
-            playAllButton->setText(QStringLiteral("全部播放"));
+            playAllButton->setText(QCoreApplication::translate("Nodes::SPlayControllerInterface", "全部播放"));
             playAllButton->setToolTip(QStringLiteral("PLAY_ALL_PLAYLISTS（command 5）"));
-            stopAllButton->setText(QStringLiteral("全停"));
+            stopAllButton->setText(QCoreApplication::translate("Nodes::SPlayControllerInterface", "全停"));
             stopAllButton->setToolTip(QStringLiteral("STOP_ALL_PLAYLISTS（command 7）"));
 
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::SPlayControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::SPlayControllerInterface", "状态: —"));
 
-            addRow(QStringLiteral("主机:"), hostEdit);
+            addRow(QCoreApplication::translate("Nodes::SPlayControllerInterface", "主机:"), hostEdit);
 
             auto *actionRow = new QWidget();
             auto *actionLayout = new QHBoxLayout(actionRow);
@@ -70,7 +71,7 @@ namespace Nodes
             layout->addWidget(connectionLabel);
             layout->addWidget(statusLabel);
 
-            layout->addWidget(new QLabel(QStringLiteral("播放列表 (勾选跟设备状态，也可点选控制):")));
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SPlayControllerInterface", "播放列表 (勾选跟设备状态，也可点选控制):")));
             playlistWidget->setMinimumHeight(140);
             playlistWidget->setSelectionMode(QAbstractItemView::NoSelection);
             layout->addWidget(playlistWidget, 1);
@@ -82,8 +83,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("连接: 已连接")
-                                         : QStringLiteral("连接: 未连接"));
+                                         ? QCoreApplication::translate("Nodes::SPlayControllerInterface", "连接: 已连接")
+                                         : QCoreApplication::translate("Nodes::SPlayControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

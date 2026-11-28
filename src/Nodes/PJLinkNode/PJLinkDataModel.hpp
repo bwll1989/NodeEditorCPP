@@ -25,6 +25,7 @@
 #include "PluginDefinition.hpp"
 #include  "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -564,7 +565,7 @@ namespace Nodes
             } else {
                 QtNodes::NodeValidationState state;
                 state._state = QtNodes::NodeValidationState::State::Error;
-                state._stateMessage = QStringLiteral("连接错误");
+                state._stateMessage = QCoreApplication::translate("Nodes::PJLinkDataModel", "连接错误");
                 setValidatonState(state);
                 m_heartbeatTimer->stop();
             }

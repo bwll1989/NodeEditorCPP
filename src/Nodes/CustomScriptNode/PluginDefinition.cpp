@@ -107,7 +107,7 @@ QString Plugin::version() const
  */
 QString Plugin::describe() const
 {
-    return QString("动态JS脚本插件 - 已加载%1个插件").arg(m_jsPlugins.size());
+    return QCoreApplication::translate("Plugin", "动态JS脚本插件 - 已加载%1个插件").arg(m_jsPlugins.size());
 }
 
 /**

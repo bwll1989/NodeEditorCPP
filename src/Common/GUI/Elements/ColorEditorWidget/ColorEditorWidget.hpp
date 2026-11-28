@@ -243,7 +243,7 @@ public :
     QSpinBox* spinBlue =new QSpinBox(this);
     QSpinBox* spinAlpha =new QSpinBox(this);
 
-    QPushButton* pickButton =new QPushButton(tr("Pick Color"),this);
+    QPushButton* pickButton =new QPushButton(tr("拾取颜色"),this);
 
     // 状态
     bool m_alphaEnabled {true};

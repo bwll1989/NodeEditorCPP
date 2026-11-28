@@ -15,6 +15,7 @@
 #include <QSignalBlocker>
 
 #include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -32,9 +33,9 @@ namespace Nodes
             mainLayout->setContentsMargins(0, 0, 0, 0);
             mainLayout->setSpacing(6);
 
-            typeCombo->addItem(QStringLiteral("导航 Navigate"), QStringLiteral("navigate"));
-            typeCombo->addItem(QStringLiteral("等待 Wait"), QStringLiteral("wait"));
-            typeCombo->addItem(QStringLiteral("动作 Action"), QStringLiteral("action"));
+            typeCombo->addItem(QCoreApplication::translate("Nodes::MissionSequencerInterface", "导航 Navigate"), QStringLiteral("navigate"));
+            typeCombo->addItem(QCoreApplication::translate("Nodes::MissionSequencerInterface", "等待 Wait"), QStringLiteral("wait"));
+            typeCombo->addItem(QCoreApplication::translate("Nodes::MissionSequencerInterface", "动作 Action"), QStringLiteral("action"));
 
             goalXSpin->setRange(-1000.0, 1000.0);
             goalXSpin->setDecimals(3);
@@ -60,8 +61,8 @@ namespace Nodes
             waitSpin->setSuffix(QStringLiteral(" s"));
             waitSpin->setValue(2.0);
 
-            actionEdit->setPlaceholderText(QStringLiteral("动作名，如 open_gripper"));
-            paramsEdit->setPlaceholderText(QStringLiteral("可选；写入 ACTION.params（文本/数字/JSON）"));
+            actionEdit->setPlaceholderText(QCoreApplication::translate("Nodes::MissionSequencerInterface", "动作名，如 open_gripper"));
+            paramsEdit->setPlaceholderText(QCoreApplication::translate("Nodes::MissionSequencerInterface", "可选；写入 ACTION.params（文本/数字/JSON）"));
 
             auto *btnRow = new QHBoxLayout();
             btnRow->addWidget(addButton);
@@ -71,21 +72,21 @@ namespace Nodes
             btnRow->addWidget(downButton);
 
             int row = 0;
-            formLayout->addWidget(new QLabel(QStringLiteral("类型")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "类型")), row, 0);
             formLayout->addWidget(typeCombo, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("备注")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "备注")), row, 0);
             formLayout->addWidget(labelEdit, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("目标 X")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "目标 X")), row, 0);
             formLayout->addWidget(goalXSpin, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("目标 Y")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "目标 Y")), row, 0);
             formLayout->addWidget(goalYSpin, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("目标航向")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "目标航向")), row, 0);
             formLayout->addWidget(goalYawSpin, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("等待")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "等待")), row, 0);
             formLayout->addWidget(waitSpin, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("动作")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "动作")), row, 0);
             formLayout->addWidget(actionEdit, row++, 1);
-            formLayout->addWidget(new QLabel(QStringLiteral("参数")), row, 0);
+            formLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MissionSequencerInterface", "参数")), row, 0);
             formLayout->addWidget(paramsEdit, row++, 1);
 
             mainLayout->addWidget(stepList);
@@ -94,7 +95,7 @@ namespace Nodes
             mainLayout->addWidget(statusLabel);
 
             statusLabel->setWordWrap(true);
-            statusLabel->setText(QStringLiteral("状态：空闲"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::MissionSequencerInterface", "状态：空闲"));
             stepList->setMinimumHeight(120);
 
             connect(typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -168,16 +169,16 @@ namespace Nodes
             const QString label = s.value(QStringLiteral("label")).toString();
             QString body;
             if (type == QStringLiteral("navigate")) {
-                body = QStringLiteral("导航 (%1, %2, %3 rad)")
+                body = QCoreApplication::translate("Nodes::MissionSequencerInterface", "导航 (%1, %2, %3 rad)")
                            .arg(s.value(QStringLiteral("x")).toDouble(), 0, 'f', 3)
                            .arg(s.value(QStringLiteral("y")).toDouble(), 0, 'f', 3)
                            .arg(s.value(QStringLiteral("yaw")).toDouble(), 0, 'f', 3);
             } else if (type == QStringLiteral("wait")) {
-                body = QStringLiteral("等待 %1 s")
+                body = QCoreApplication::translate("Nodes::MissionSequencerInterface", "等待 %1 s")
                            .arg(s.value(QStringLiteral("seconds")).toDouble(1.0), 0, 'f', 2);
             } else {
                 const QString act = s.value(QStringLiteral("action")).toString();
-                body = act.isEmpty() ? QStringLiteral("动作") : QStringLiteral("动作 %1").arg(act);
+                body = act.isEmpty() ? QCoreApplication::translate("Nodes::MissionSequencerInterface", "动作") : QCoreApplication::translate("Nodes::MissionSequencerInterface", "动作 %1").arg(act);
             }
             if (!label.isEmpty()) {
                 body += QStringLiteral(" — ") + label;
@@ -319,11 +320,11 @@ namespace Nodes
         FloatDragValueWidget *waitSpin = new FloatDragValueWidget();
         QLineEdit *actionEdit = new QLineEdit();
         QLineEdit *paramsEdit = new QLineEdit();
-        QPushButton *addButton = new QPushButton(QStringLiteral("添加"));
-        QPushButton *applyButton = new QPushButton(QStringLiteral("应用"));
-        QPushButton *removeButton = new QPushButton(QStringLiteral("删除"));
-        QPushButton *upButton = new QPushButton(QStringLiteral("上移"));
-        QPushButton *downButton = new QPushButton(QStringLiteral("下移"));
+        QPushButton *addButton = new QPushButton(QCoreApplication::translate("Nodes::MissionSequencerInterface", "添加"));
+        QPushButton *applyButton = new QPushButton(QCoreApplication::translate("Nodes::MissionSequencerInterface", "应用"));
+        QPushButton *removeButton = new QPushButton(QCoreApplication::translate("Nodes::MissionSequencerInterface", "删除"));
+        QPushButton *upButton = new QPushButton(QCoreApplication::translate("Nodes::MissionSequencerInterface", "上移"));
+        QPushButton *downButton = new QPushButton(QCoreApplication::translate("Nodes::MissionSequencerInterface", "下移"));
         QLabel *statusLabel = new QLabel();
 
         QJsonArray m_steps;

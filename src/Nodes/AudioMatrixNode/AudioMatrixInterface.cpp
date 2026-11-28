@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QPainter>
 #include <QPen>
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -69,15 +70,15 @@ AudioMatrixInterface::AudioMatrixInterface(int inputCount, int outputCount, QWid
     mMenuButton->setPopupMode(QToolButton::InstantPopup);
     mMenuButton->setFixedSize(24, 24);
     mMenuButton->setFocusPolicy(Qt::NoFocus);
-    mMenuButton->setToolTip(QStringLiteral("矩阵操作"));
+    mMenuButton->setToolTip(QCoreApplication::translate("Nodes::AudioMatrixInterface", "矩阵操作"));
 
     auto *menu = new QMenu(mMenuButton);
     QAction *identityAct = menu->addAction(makeIdentityIcon(iconColor),
-                                           QStringLiteral("1:1 直通"));
-    identityAct->setToolTip(QStringLiteral("对角线 0 dB，其余静音"));
+                                           QCoreApplication::translate("Nodes::AudioMatrixInterface", "1:1 直通"));
+    identityAct->setToolTip(QCoreApplication::translate("Nodes::AudioMatrixInterface", "对角线 0 dB，其余静音"));
     QAction *muteAct = menu->addAction(QIcon(QStringLiteral(":/icons/icons/clear.png")),
-                                       QStringLiteral("全部静音"));
-    muteAct->setToolTip(QStringLiteral("全部设为 -60 dB"));
+                                       QCoreApplication::translate("Nodes::AudioMatrixInterface", "全部静音"));
+    muteAct->setToolTip(QCoreApplication::translate("Nodes::AudioMatrixInterface", "全部设为 -60 dB"));
     mMenuButton->setMenu(menu);
 
     connect(identityAct, &QAction::triggered, mMatrixWidget, &MatrixWidget::setIdentity);

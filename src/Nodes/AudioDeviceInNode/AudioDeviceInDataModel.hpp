@@ -11,6 +11,7 @@
 #include "AudioDeviceInInterface.hpp"
 #include "Common/DataTypes/AudioTimestampRingQueue.h"
 #include <portaudio.h>
+#include <QCoreApplication>
 #include <memory>
 #include <map>
 #include "TimestampGenerator/TimestampGenerator.hpp"
@@ -193,7 +194,7 @@ namespace Nodes
             for (int i = 0; i < numDevices; i++) {
                 const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(i);
                 if (deviceInfo != nullptr && deviceInfo->maxInputChannels > 0) {
-                    QString deviceName = QString("%1: %2 (输入通道: %3)")
+                    QString deviceName = QCoreApplication::translate("Nodes::AudioDeviceInDataModel", "%1: %2 (输入通道: %3)")
                                         .arg(i)
                                         .arg(deviceInfo->name)
                                         .arg(deviceInfo->maxInputChannels);

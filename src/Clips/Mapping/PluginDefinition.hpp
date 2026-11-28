@@ -53,11 +53,11 @@ public:
 
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表漏本类型落兜底「属性」——下放纠偏）
-    QString clipDisplayName() const override { return QStringLiteral("映射"); }
+    QString clipDisplayName() const override { return tr("映射"); }
     /// 无媒体绑定语义：消息表在专属页编辑（媒体区隐藏 + 绑定行说明文案）
     bool hasMediaBinding() const override { return false; }
     QString bindingHint() const override {
-        return QStringLiteral("（映射片段无需媒体文件）");
+        return tr("（映射片段无需媒体文件）");
     }
 
     // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----

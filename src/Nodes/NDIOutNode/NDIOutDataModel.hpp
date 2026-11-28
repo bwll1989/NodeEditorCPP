@@ -45,6 +45,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -130,7 +131,7 @@ namespace Nodes
                     emit sendingStatusChanged(true);
                     qDebug() << "NDI发送器启动成功:" << m_senderName;
                 } else {
-                    emit errorOccurred("创建NDI发送器失败");
+                    emit errorOccurred(QCoreApplication::translate("Nodes::NDIOutDataModel", "创建NDI发送器失败"));
                 }
             }
         }
@@ -193,7 +194,7 @@ namespace Nodes
                     start();
                     emit sendingStatusChanged(true);
                 } else {
-                    emit errorOccurred("重新创建NDI发送器失败");
+                    emit errorOccurred(QCoreApplication::translate("Nodes::NDIOutDataModel", "重新创建NDI发送器失败"));
                 }
             }
         }

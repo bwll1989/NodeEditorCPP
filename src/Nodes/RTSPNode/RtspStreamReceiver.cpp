@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include <QDebug>
+#include <QCoreApplication>
 
 namespace {
 
@@ -386,7 +387,7 @@ void RtspStreamReceiverWorker::run()
                     break;
                 }
                 emit connectionStatusChanged(false);
-                emit errorOccurred(QStringLiteral("无法连接 RTSP: %1").arg(currentUrl));
+                emit errorOccurred(QCoreApplication::translate("RtspStreamReceiver", "无法连接 RTSP: %1").arg(currentUrl));
                 for (int i = 0; i < 20 && !m_abort.load(); ++i) {
                     msleep(100);
                 }
@@ -405,7 +406,7 @@ void RtspStreamReceiverWorker::run()
             cleanupFFmpeg();
             connected = false;
             emit connectionStatusChanged(false);
-            emit errorOccurred(QStringLiteral("RTSP 流中断: %1").arg(currentUrl));
+            emit errorOccurred(QCoreApplication::translate("RtspStreamReceiver", "RTSP 流中断: %1").arg(currentUrl));
             for (int i = 0; i < 10 && !m_abort.load(); ++i) {
                 msleep(100);
             }

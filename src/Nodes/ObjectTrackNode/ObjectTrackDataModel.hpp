@@ -40,6 +40,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -363,8 +364,8 @@ public:
                     QSignalBlocker blocker(m_widget->enableBtn);
                     m_widget->enableBtn->setChecked(false);
                 }
-                setStatusText(segmenting ? QStringLiteral("正在分割，请稍候再开始检测")
-                                         : QStringLiteral("请先选择对象"));
+                setStatusText(segmenting ? QCoreApplication::translate("Nodes::ObjectTrackDataModel", "正在分割，请稍候再开始检测")
+                                         : QCoreApplication::translate("Nodes::ObjectTrackDataModel", "请先选择对象"));
                 return;
             }
         }
@@ -374,7 +375,7 @@ public:
             m_widget->enableBtn->setChecked(value);
         }
         if (m_widget) {
-            m_widget->enableBtn->setText(value ? QStringLiteral("停止检测") : QStringLiteral("开始检测"));
+            m_widget->enableBtn->setText(value ? QCoreApplication::translate("Nodes::ObjectTrackDataModel", "停止检测") : QCoreApplication::translate("Nodes::ObjectTrackDataModel", "开始检测"));
         }
         emit enabledChanged(value);
         if (!m_enabled) {
@@ -654,14 +655,14 @@ private Q_SLOTS:
             return;
         }
         if (m_previewFrame.empty()) {
-            setStatusText(QStringLiteral("还没有画面"));
+            setStatusText(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "还没有画面"));
             return;
         }
         if (point.x() < 0 || point.y() < 0 || point.x() >= m_previewFrame.cols || point.y() >= m_previewFrame.rows) {
             return;
         }
         if (m_enabled) {
-            setStatusText(QStringLiteral("检测中无法选择对象，请先停止检测"));
+            setStatusText(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "检测中无法选择对象，请先停止检测"));
             return;
         }
         QString id = m_widget->idEdit->text().trimmed();
@@ -679,7 +680,7 @@ private Q_SLOTS:
         }
         m_widget->regionView->setFrozen(true);
         m_inferenceTimer.invalidate();
-        setStatusText(QStringLiteral("正在分割 %1").arg(id));
+        setStatusText(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "正在分割 %1").arg(id));
         requestInferenceRefresh();
     }
 
@@ -702,7 +703,7 @@ private Q_SLOTS:
         }
         m_galleryGen.fetch_add(1);
         refreshTargetList();
-        setStatusText(QStringLiteral("已删除 %1").arg(id));
+        setStatusText(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "已删除 %1").arg(id));
         requestInferenceRefresh();
     }
 
@@ -846,7 +847,7 @@ private:
             QStringList parts;
             parts << target.id;
             if (!target.samples.empty()) {
-                parts << QStringLiteral("取样次数 %1").arg(target.samples.size());
+                parts << QCoreApplication::translate("Nodes::ObjectTrackDataModel", "取样次数 %1").arg(target.samples.size());
             }
             auto* item = new QListWidgetItem(parts.join(QStringLiteral("  ")), m_widget->targetList);
             item->setData(Qt::UserRole, target.id);
@@ -1380,7 +1381,7 @@ private:
         }
         const QString samPath = QStringLiteral("./plugins/Models/mobile-sam-click.onnx");
         if (!QFileInfo::exists(samPath)) {
-            postStatus(QStringLiteral("缺少分割模型 mobile-sam-click.onnx"));
+            postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "缺少分割模型 mobile-sam-click.onnx"));
             return false;
         }
         if (!ensureEnv()) {
@@ -1396,7 +1397,7 @@ private:
             qDebug() << "点击分割模型加载失败:" << error.what();
             releaseBundle(ort().sam);
             ort().samReady = false;
-            postStatus(QStringLiteral("分割模型加载失败"));
+            postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "分割模型加载失败"));
             return false;
         }
         return ort().samReady;
@@ -1412,7 +1413,7 @@ private:
         if (!QFileInfo::exists(promptPath) || !QFileInfo::exists(detectPath)) {
             if (!m_modelErrorLogged.load()) {
                 m_modelErrorLogged.store(true);
-                postStatus(QStringLiteral("缺少 ONNX：plugins/Models/yoloe-prompt.onnx 与 yoloe-detect.onnx"));
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "缺少 ONNX：plugins/Models/yoloe-prompt.onnx 与 yoloe-detect.onnx"));
             }
             return false;
         }
@@ -1433,7 +1434,7 @@ private:
             if (!tryCuda) {
                 if (!m_modelErrorLogged.load()) {
                     m_modelErrorLogged.store(true);
-                    postStatus(QStringLiteral("ONNX 加载失败"));
+                    postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "ONNX 加载失败"));
                 }
                 qDebug() << "Object Track ONNX 初始化失败:" << error.what();
                 return false;
@@ -1452,7 +1453,7 @@ private:
                 releaseBundle(ort().detect);
                 if (!m_modelErrorLogged.load()) {
                     m_modelErrorLogged.store(true);
-                    postStatus(QStringLiteral("ONNX 加载失败"));
+                    postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "ONNX 加载失败"));
                 }
                 qDebug() << "Object Track ONNX 初始化失败:" << cpuError.what();
                 return false;
@@ -1709,8 +1710,8 @@ private:
         for (const TrackTarget& target : gallery) {
             sampleCount += static_cast<int>(target.samples.size());
         }
-        postStatus(sampleCount > 0 ? QStringLiteral("正在编码 %1 张目标图").arg(sampleCount)
-                                  : QStringLiteral("点击画面中的物体"));
+        postStatus(sampleCount > 0 ? QCoreApplication::translate("Nodes::ObjectTrackDataModel", "正在编码 %1 张目标图").arg(sampleCount)
+                                  : QCoreApplication::translate("Nodes::ObjectTrackDataModel", "点击画面中的物体"));
         int failed = 0;
         int encodedPhotos = 0;
         bool truncated = false;
@@ -1735,18 +1736,18 @@ private:
                 } else {
                     ++failed;
                 }
-                postStatus(QStringLiteral("正在编码 %1/%2").arg(encodedPhotos + failed).arg(sampleCount));
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "正在编码 %1/%2").arg(encodedPhotos + failed).arg(sampleCount));
             }
             if (truncated) {
                 break;
             }
         }
         if (m_encoded.empty()) {
-            postStatus(failed > 0 ? QStringLiteral("目标图无法编码") : QStringLiteral("点击画面中的物体"));
+            postStatus(failed > 0 ? QCoreApplication::translate("Nodes::ObjectTrackDataModel", "目标图无法编码") : QCoreApplication::translate("Nodes::ObjectTrackDataModel", "点击画面中的物体"));
             return false;
         }
         if (truncated) {
-            postStatus(QStringLiteral("样本过多，只使用了前 %1 个向量").arg(m_encoded.size()));
+            postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "样本过多，只使用了前 %1 个向量").arg(m_encoded.size()));
         }
         return true;
     }
@@ -2097,17 +2098,17 @@ private:
                 if (!ensureSam()) {
                     releasePreview(pick.hold);
                 } else {
-                    postStatus(QStringLiteral("正在分割 %1").arg(pick.id));
+                    postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "正在分割 %1").arg(pick.id));
                     const cv::Mat mask = segmentClick(pick.frame, pick.click);
                     const cv::Mat objectImage = packObjectImage(pick.frame, mask);
                     const QString file = saveObjectPng(objectImage, pick.id);
                     if (objectImage.empty() || file.isEmpty()) {
-                        postStatus(QStringLiteral("没有分割出可跟踪的物体"));
+                        postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "没有分割出可跟踪的物体"));
                         releasePreview(pick.hold);
                     } else if (commitSample(pick.id, objectImage, file)) {
                         presentSegment(pick.hold, mask);
                         refreshTargetListLater();
-                        postStatus(QStringLiteral("已保存 %1，可继续选择或开始检测").arg(pick.id));
+                        postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "已保存 %1，可继续选择或开始检测").arg(pick.id));
                     } else {
                         releasePreview(pick.hold);
                     }
@@ -2175,9 +2176,9 @@ private:
                 outputs[0], frame.size(), static_cast<float>(confidence), maxScore);
             updateTracks(detections, frame.size(), hold);
             if (m_tracks.empty()) {
-                postStatus(QStringLiteral("未匹配，最高分 %1").arg(QString::number(maxScore, 'f', 2)));
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "未匹配，最高分 %1").arg(QString::number(maxScore, 'f', 2)));
             } else {
-                postStatus(QStringLiteral("跟踪中 %1 个，最高分 %2")
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "跟踪中 %1 个，最高分 %2")
                                .arg(m_tracks.size())
                                .arg(QString::number(maxScore, 'f', 2)));
             }
@@ -2186,7 +2187,7 @@ private:
             qDebug() << "Object Track ONNX 错误:" << error.what();
             if (pick.active) {
                 releasePreview(pick.hold);
-                postStatus(QStringLiteral("分割失败"));
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "分割失败"));
                 return;
             }
             if (ort().useCuda && !ort().cudaUnavailable) {
@@ -2194,18 +2195,18 @@ private:
                 ort().detectReady = false;
                 releaseBundle(ort().prompt);
                 releaseBundle(ort().detect);
-                postStatus(QStringLiteral("CUDA 推理失败，改用 CPU"));
+                postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "CUDA 推理失败，改用 CPU"));
                 runTrack(std::move(frame), confidence, draw, hold);
                 return;
             }
             ort().detectReady = false;
-            postStatus(QStringLiteral("跟踪推理失败"));
+            postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "跟踪推理失败"));
         } catch (const std::exception& error) {
             qDebug() << "Object Track 推理错误:" << error.what();
             if (pick.active) {
                 releasePreview(pick.hold);
             }
-            postStatus(QStringLiteral("跟踪推理失败"));
+            postStatus(QCoreApplication::translate("Nodes::ObjectTrackDataModel", "跟踪推理失败"));
         }
     }
 

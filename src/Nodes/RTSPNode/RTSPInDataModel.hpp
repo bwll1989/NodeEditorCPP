@@ -18,6 +18,7 @@
 #include <QSignalBlocker>
 #include <atomic>
 #include <opencv2/opencv.hpp>
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -242,7 +243,7 @@ namespace Nodes
 
             if (value) {
                 if (m_url.trimmed().isEmpty()) {
-                    onErrorOccurred(QStringLiteral("RTSP 地址不能为空"));
+                    onErrorOccurred(QCoreApplication::translate("Nodes::RTSPInDataModel", "RTSP 地址不能为空"));
                     if (RTSPInInterface* widget = m_widget.data()) {
                         if (widget->m_startStopButton) {
                             QSignalBlocker blocker(widget->m_startStopButton);
@@ -359,7 +360,7 @@ namespace Nodes
             }
 
             if (m_isReceiving) {
-                widget->showError(QStringLiteral("RTSP 连接中断，正在重连..."));
+                widget->showError(QCoreApplication::translate("Nodes::RTSPInDataModel", "RTSP 连接中断，正在重连..."));
             } else {
                 widget->updateConnectionStatus(false);
             }

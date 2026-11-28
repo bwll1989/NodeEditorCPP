@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "Modbus TCP 从机（纯被控）：响应主站读写线圈，本地面板只读显示"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "Modbus TCP 从机（纯被控）：响应主站读写线圈，本地面板只读显示")
 #define PLUGIN_TAG "Devices"
 
 class DLL_EXPORT Plugin
@@ -31,7 +31,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; }
     QString version() const override { return PLUGIN_VERSION; }
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
     QString tag() const override { return PLUGIN_TAG; }
     bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;

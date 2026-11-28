@@ -72,6 +72,16 @@ public:
      */
     bool isHeadlessTimelineLoop() const;
     /**
+     * @brief 获取界面语言（"zh" = 中文默认，"en" = 英文，经翻译文件 flow_en.qm）
+     * @note 语言切换需重启生效：UI 文本在构造期写入，无 retranslate 链路
+     */
+    QString getLanguage() const;
+    /**
+     * @brief 设置界面语言并立即持久化（General/Language）
+     * @param lang 语言键（zh/en/ja/zh_TW/fr，未知值回退 "zh"）
+     */
+    void setLanguage(const QString& lang);
+    /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
      * - 同步写入配置文件
@@ -126,6 +136,7 @@ private:
     int m_artnetSendFps;   ///< Art-Net 发送节拍频率（Hz）
     int m_sceneAutoPublishMs; ///< 场景自动下发节流间隔（ms，Network/SceneAutoPublishMs）
     bool m_headlessTimelineLoop; ///< headless 时间轴回放循环（Runtime/HeadlessTimelineLoop）
+    QString m_language; ///< 界面语言（General/Language，zh/en/ja/zh_TW/fr，切换需重启）
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };

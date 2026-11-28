@@ -14,6 +14,7 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -46,7 +47,7 @@ namespace Nodes
             m_deleteBtn->setFixedSize(inner, inner);
             m_deleteBtn->setFlat(true);
             m_deleteBtn->setFocusPolicy(Qt::NoFocus);
-            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            m_deleteBtn->setToolTip(QCoreApplication::translate("Nodes::DistributeRuleRow", "删除"));
             connect(m_deleteBtn, &QPushButton::clicked, this, &DistributeRuleRow::deleteRequested);
 
             m_edit = new QLineEdit(this);
@@ -103,7 +104,7 @@ namespace Nodes
             m_addButton->setFixedSize(inner, inner);
             m_addButton->setFlat(true);
             m_addButton->setFocusPolicy(Qt::NoFocus);
-            m_addButton->setToolTip(QStringLiteral("添加"));
+            m_addButton->setToolTip(QCoreApplication::translate("Nodes::DistributeInterface", "添加"));
             connect(m_addButton, &QPushButton::clicked, this, &DistributeInterface::onAddClicked);
 
             auto *left = new QVBoxLayout();

@@ -219,7 +219,7 @@ void VideoTranscoder::startProbe(const Job& job)
         // 已是 HAP 编码：跳过（success=true 且 outPath 为空表示跳过，不动任何文件）
         if (codecName.startsWith(QLatin1String("hap"))) {
             qCInfo(logTranscoder) << "源已是 HAP，跳过转码:" << src;
-            finishCurrent(true, QString(), QStringLiteral("已是 HAP 编码，跳过转码"));
+            finishCurrent(true, QString(), tr("已是 HAP 编码，跳过转码"));
             return;
         }
 
@@ -318,7 +318,7 @@ void VideoTranscoder::startTranscode(const Job& job, bool audioCopy)
             return;
         }
         finishCurrent(false, QString(),
-                      errTail.isEmpty() ? QStringLiteral("ffmpeg 退出码 %1").arg(exitCode) : errTail);
+                      errTail.isEmpty() ? tr("ffmpeg 退出码 %1").arg(exitCode) : errTail);
     });
 
     // 【幽灵 socket 治本 2026-11-13】ffmpeg 纳入陪葬 job（同 startProbe）

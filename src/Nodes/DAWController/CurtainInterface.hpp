@@ -15,6 +15,7 @@
 #include "QHBoxLayout"
 #include "QGridLayout"
 #include "QDateTime"
+#include <QCoreApplication>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 
@@ -51,7 +52,7 @@ namespace Nodes
          * @param connected 连接状态
          */
         void updateConnectionStatus(bool connected) {
-            connectionStatusLabel->setText(connected?"状态: 已连接":"状态: 未连接");
+            connectionStatusLabel->setText(connected?QCoreApplication::translate("Nodes::CurtainInterface", "状态: 已连接") : QCoreApplication::translate("Nodes::CurtainInterface", "状态: 未连接"));
             connectionStatusLabel->setStyleSheet(connected?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
             connectionStatusLabel->setChecked(connected);
         }
@@ -79,13 +80,13 @@ namespace Nodes
         }
 
     private:
-        QLabel *hostLabel = new QLabel("主机地址:");
-        QLabel *portLabel = new QLabel("端口:");
+        QLabel *hostLabel = new QLabel(QCoreApplication::translate("Nodes::CurtainInterface", "主机地址:"));
+        QLabel *portLabel = new QLabel(QCoreApplication::translate("Nodes::CurtainInterface", "端口:"));
     public:
-        QPushButton* openButton = new QPushButton("Open");
-        QPushButton* closeButton = new QPushButton("Close");
-        QPushButton* resetButton = new QPushButton("Reset");
+        QPushButton* openButton = new QPushButton(QCoreApplication::translate("Nodes::CurtainInterface", "打开"));
+        QPushButton* closeButton = new QPushButton(QCoreApplication::translate("Nodes::CurtainInterface", "关闭"));
+        QPushButton* resetButton = new QPushButton(QCoreApplication::translate("Nodes::CurtainInterface", "重置"));
         IntDragValueWidget* portSpinBox = new IntDragValueWidget();
-        QPushButton *connectionStatusLabel = new QPushButton("Disconnect");
+        QPushButton *connectionStatusLabel = new QPushButton(QCoreApplication::translate("Nodes::CurtainInterface", "断开"));
     };
 }

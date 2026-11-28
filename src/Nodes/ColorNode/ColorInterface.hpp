@@ -9,6 +9,7 @@
 #include "QLayout"
 #include <QSpinBox>
 #include <QVariantMap>
+#include <QCoreApplication>
 namespace Nodes
 {
 class ImageConstInterface final : public QWidget{
@@ -35,7 +36,7 @@ class ImageConstInterface final : public QWidget{
     public:
         QGridLayout *main_layout;
         QLabel *display=new QLabel();
-        QPushButton *colorEditButton=new QPushButton("Edit Color");
+        QPushButton *colorEditButton=new QPushButton(QCoreApplication::translate("Nodes::ImageConstInterface", "编辑颜色"));
         // QComboBox *colorFormatComboBox=new QComboBox();
         // QStringList colorFormatComboBoxItems={"float","uint8"};
 

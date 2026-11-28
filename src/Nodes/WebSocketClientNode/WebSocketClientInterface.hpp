@@ -11,6 +11,7 @@
 #include "QLineEdit"
 #include "QTextBrowser"
 #include "QComboBox"
+#include <QCoreApplication>
 
 using namespace std;
 
@@ -46,14 +47,14 @@ namespace Nodes
         QGridLayout *main_layout=new QGridLayout(this);
         QLineEdit* valueEdit=new QLineEdit();
         QLineEdit* hostUrlEdit=new QLineEdit("ws://127.0.0.1:2003");
-        QPushButton* send=new QPushButton("Send");
+        QPushButton* send=new QPushButton(QCoreApplication::translate("Nodes::WebSocketClientInterface", "发送"));
         QComboBox* format=new QComboBox();
         QComboBox* messageType=new QComboBox();
-        QPushButton* statusButton=new QPushButton("Disconnected");
+        QPushButton* statusButton=new QPushButton(QCoreApplication::translate("Nodes::WebSocketClientInterface", "已断开"));
     private:
         QLabel *hostLabel=new QLabel("URL  ");
-        QLabel *valueLabel=new QLabel("Value    ");
-        QLabel *messageLabel=new QLabel("Message Type    ");
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::WebSocketClientInterface", "值："));
+        QLabel *messageLabel=new QLabel(QCoreApplication::translate("Nodes::WebSocketClientInterface", "消息类型"));
 
     };
 }

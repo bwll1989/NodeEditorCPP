@@ -405,9 +405,9 @@ void OSCMessageListWidget::showContextMenu(const QPoint& pos)
         QMenu menu(this);
         menu.setWindowFlags(menu.windowFlags() | Qt::NoDropShadowWindowHint);
         menu.setAttribute(Qt::WA_TranslucentBackground, false);
-        QAction* addAction = menu.addAction(QIcon(":/icons/icons/add.png"), "Add Message");
-        QAction* deleteAction = menu.addAction(QIcon(":/icons/icons/delete.png"), "Delete Message");
-        QAction* clearAction = menu.addAction(QIcon(":/icons/icons/clear.png"), "Clear All Messages");
+        QAction* addAction = menu.addAction(QIcon(":/icons/icons/add.png"), tr("添加消息"));
+        QAction* deleteAction = menu.addAction(QIcon(":/icons/icons/delete.png"), tr("删除消息"));
+        QAction* clearAction = menu.addAction(QIcon(":/icons/icons/clear.png"), tr("清空全部消息"));
 
         if (editMenu && !editMenu->actions().isEmpty()) {
             menu.addSeparator();

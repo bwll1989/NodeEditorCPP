@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -42,37 +43,37 @@ namespace Nodes
             usernameEdit->setText(QStringLiteral("admin"));
             passwordEdit->setText(QStringLiteral("admin"));
             passwordEdit->setEchoMode(QLineEdit::Password);
-            zoneNameEdit->setPlaceholderText(QStringLiteral("留空=主分区"));
+            zoneNameEdit->setPlaceholderText(QCoreApplication::translate("Nodes::SlideShowInterface", "留空=主分区"));
 
             indexSpinBox->setMinimum(0);
             indexSpinBox->setMaximum(9999);
             indexSpinBox->setValue(0);
-            indexSpinBox->setToolTip(QStringLiteral("播放列表排序号（从 0 起）"));
+            indexSpinBox->setToolTip(QCoreApplication::translate("Nodes::SlideShowInterface", "播放列表排序号（从 0 起）"));
 
-            playButton->setText(QStringLiteral("播放"));
-            playButton->setToolTip(QStringLiteral("按当前 Index 切换播放列表"));
+            playButton->setText(QCoreApplication::translate("Nodes::SlideShowInterface", "播放"));
+            playButton->setToolTip(QCoreApplication::translate("Nodes::SlideShowInterface", "按当前 Index 切换播放列表"));
 
             // 连接指示：只读展示
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::SlideShowInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::SlideShowInterface", "状态: —"));
 
-            addRow(QStringLiteral("Base URL:"), baseUrlEdit);
-            addRow(QStringLiteral("Username:"), usernameEdit);
-            addRow(QStringLiteral("Password:"), passwordEdit);
-            addRow(QStringLiteral("Zone:"), zoneNameEdit);
-            addRow(QStringLiteral("Index:"), indexSpinBox);
+            addRow(QCoreApplication::translate("Nodes::SlideShowInterface", "基础 URL："), baseUrlEdit);
+            addRow(QCoreApplication::translate("Nodes::SlideShowInterface", "用户名："), usernameEdit);
+            addRow(QCoreApplication::translate("Nodes::SlideShowInterface", "密码："), passwordEdit);
+            addRow(QCoreApplication::translate("Nodes::SlideShowInterface", "区域："), zoneNameEdit);
+            addRow(QCoreApplication::translate("Nodes::SlideShowInterface", "序号："), indexSpinBox);
             layout->addWidget(playButton);
             layout->addWidget(connectionLabel);
             layout->addWidget(statusLabel);
 
-            layout->addWidget(new QLabel(QStringLiteral("播放列表:")));
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SlideShowInterface", "播放列表:")));
             playlistWidget->setMinimumHeight(120);
             layout->addWidget(playlistWidget, 1);
 
@@ -84,8 +85,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("连接: 已连接")
-                                         : QStringLiteral("连接: 未连接"));
+                                         ? QCoreApplication::translate("Nodes::SlideShowInterface", "连接: 已连接")
+                                         : QCoreApplication::translate("Nodes::SlideShowInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

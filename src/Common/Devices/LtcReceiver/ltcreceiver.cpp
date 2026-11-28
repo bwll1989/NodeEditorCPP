@@ -7,7 +7,7 @@ LTCReceiver::LTCReceiver(QObject *parent)
   // 初始化 PortAudio
   PaError err = Pa_Initialize();
   if (err != paNoError) {
-    emit statusChanged(true, QString("PortAudio 初始化失败: %1").arg(Pa_GetErrorText(err)));
+    emit statusChanged(true, tr("PortAudio 初始化失败: %1").arg(Pa_GetErrorText(err)));
     return;
   }
 
@@ -50,7 +50,7 @@ void LTCReceiver::start(QString deviceName)
   // 查找设备
   int numDevices = Pa_GetDeviceCount();
   if (_currentDeviceIndex < 0 || _currentDeviceIndex >= numDevices) {
-    emit statusChanged(true, "找不到指定的音频设备");
+    emit statusChanged(true, tr("找不到指定的音频设备"));
     return;
   }
 
@@ -80,9 +80,9 @@ void LTCReceiver::start(QString deviceName)
                              this);
 
   if (err != paNoError) {
-    QString errorMsg = _isASIO ? 
-      QString("无法打开ASIO流(通道 %1): %2").arg(_selectedChannel).arg(Pa_GetErrorText(err)) :
-      QString("无法打开音频流: %1").arg(Pa_GetErrorText(err));
+    QString errorMsg = _isASIO ?
+      tr("无法打开ASIO流(通道 %1): %2").arg(_selectedChannel).arg(Pa_GetErrorText(err)) :
+      tr("无法打开音频流: %1").arg(Pa_GetErrorText(err));
     emit statusChanged(true, errorMsg);
     return;
   }
@@ -90,7 +90,7 @@ void LTCReceiver::start(QString deviceName)
   // 启动音频流
   err = Pa_StartStream(_paStream);
   if (err != paNoError) {
-    emit statusChanged(true, QString("无法启动音频流: %1").arg(Pa_GetErrorText(err)));
+    emit statusChanged(true, tr("无法启动音频流: %1").arg(Pa_GetErrorText(err)));
     Pa_CloseStream(_paStream);
     _paStream = nullptr;
     return;

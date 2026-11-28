@@ -5,6 +5,7 @@
 #include <QAbstractButton>
 #include <QIcon>
 #include <QSize>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -21,7 +22,7 @@ SnapshotInterface::SnapshotInterface(QWidget *parent)
 
     m_toolbarLayout = new QHBoxLayout();
     m_toolbarLayout->setSpacing(4);
-    m_addButton = new QPushButton(tr("添加"), this);
+    m_addButton = new QPushButton(QCoreApplication::translate("Nodes::SnapshotInterface", "添加"), this);
     m_addButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_addButton->setMinimumHeight(28);
     m_toolbarLayout->addWidget(m_addButton, 1);
@@ -39,7 +40,7 @@ SnapshotInterface::SnapshotInterface(QWidget *parent)
     m_scrollArea->setWidget(m_buttonHost);
     m_rootLayout->addWidget(m_scrollArea, 1);
 
-    m_statusLabel = new QLabel(tr("选中节点后点预设旁「更新」保存到该预设"), this);
+    m_statusLabel = new QLabel(QCoreApplication::translate("Nodes::SnapshotInterface", "选中节点后点预设旁「更新」保存到该预设"), this);
     m_statusLabel->setWordWrap(true);
     m_rootLayout->addWidget(m_statusLabel);
 
@@ -102,7 +103,7 @@ void SnapshotInterface::rebuildButtons(const QStringList &names)
         updateBtn->setIconSize(QSize(16, 16));
         updateBtn->setFixedSize(28, 28);
         updateBtn->setFlat(true);
-        updateBtn->setToolTip(tr("更新：将当前选中节点状态写入此预设"));
+        updateBtn->setToolTip(QCoreApplication::translate("Nodes::SnapshotInterface", "更新：将当前选中节点状态写入此预设"));
         connect(updateBtn, &QPushButton::clicked, this, [this, i]() {
             emit presetUpdateRequested(i);
         });
@@ -112,7 +113,7 @@ void SnapshotInterface::rebuildButtons(const QStringList &names)
         removeBtn->setIconSize(QSize(16, 16));
         removeBtn->setFixedSize(28, 28);
         removeBtn->setFlat(true);
-        removeBtn->setToolTip(tr("删除此预设"));
+        removeBtn->setToolTip(QCoreApplication::translate("Nodes::SnapshotInterface", "删除此预设"));
         connect(removeBtn, &QPushButton::clicked, this, [this, i]() {
             emit presetRemoveRequested(i);
         });

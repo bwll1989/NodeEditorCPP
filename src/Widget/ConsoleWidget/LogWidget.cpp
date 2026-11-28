@@ -7,7 +7,7 @@
 #include <QActionGroup>
 LogWidget::LogWidget() {
     setColumnCount(4);  // 时间、级别、文件、消息
-    QStringList headers = {"Timestamp", "Level", "File", "Message"};
+    QStringList headers = {tr("时间"), tr("级别"), tr("文件"), tr("消息")};
     setHorizontalHeaderLabels(headers);
     horizontalHeader()->setSectionResizeMode(3,QHeaderView::Stretch);
     setEditTriggers(QAbstractItemView::DoubleClicked);
@@ -30,17 +30,17 @@ LogWidget::LogWidget() {
 void LogWidget::initializeActions() {
 
     // 创建清除日志的动作
-    QAction *clearAction = menu->addAction("清除日志 ");
+    QAction *clearAction = menu->addAction(tr("清除日志 "));
     clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
     connect(clearAction, &QAction::triggered, this, &LogWidget::clearTableWidget);
 
     // 添加导出日志功能
-    QAction *exportAction = menu->addAction("导出日志 ");
+    QAction *exportAction = menu->addAction(tr("导出日志 "));
     exportAction->setIcon(QIcon(":/icons/icons/export.png"));
     connect(exportAction, &QAction::triggered, this, &LogWidget::exportLog);
 
     // 添加日志过滤子菜单
-    QMenu *filterMenu = menu->addMenu( "过滤日志  ");
+    QMenu *filterMenu = menu->addMenu( tr("过滤日志  "));
     filterMenu->setIcon(QIcon(":/icons/icons/filter.png"));
     QStringList filterLevels = {"All", "Debug", "Info", "Warn", "Critical", "Fatal"};
     QActionGroup *filterGroup = new QActionGroup(this);
@@ -83,9 +83,9 @@ void LogWidget::setLogFilter(const QString &level) {
 }
 
 void LogWidget::exportLog() {
-    QString fileName = QFileDialog::getSaveFileName(this, "导出日志",
+    QString fileName = QFileDialog::getSaveFileName(this, tr("导出日志"),
                                                  QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + "_log.csv",
-                                                 "CSV文件 (*.csv);;文本文件 (*.txt)");
+                                                 tr("CSV文件 (*.csv);;文本文件 (*.txt)"));
     if (fileName.isEmpty()) {
         return;
     }

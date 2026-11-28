@@ -140,9 +140,9 @@ QMenu *create(QtNodes::BasicGraphicsScene *scene,
     mainLayout->setSpacing(4);
 
     auto *txtBox = new QLineEdit;
-    txtBox->setPlaceholderText(trMenu("搜索节点"));
+    txtBox->setPlaceholderText(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "搜索节点")));
     txtBox->setClearButtonEnabled(true);
-    auto *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), trMenu("搜索"), txtBox);
+    auto *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "搜索")), txtBox);
     txtBox->addAction(searchIconAction, QLineEdit::LeadingPosition);
     searchIconAction->setEnabled(false);
     mainLayout->addWidget(txtBox);
@@ -178,13 +178,13 @@ QMenu *create(QtNodes::BasicGraphicsScene *scene,
     descLayout->setContentsMargins(8, 8, 8, 8);
     descLayout->setSpacing(8);
 
-    auto *descTitle = new QLabel(trMenu("节点说明"));
+    auto *descTitle = new QLabel(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "节点说明")));
     descTitle->setWordWrap(true);
     QFont titleFont = descTitle->font();
     titleFont.setBold(true);
     descTitle->setFont(titleFont);
 
-    auto *descSummary = new QLabel(trMenu("将鼠标移到节点上查看说明"));
+    auto *descSummary = new QLabel(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "将鼠标移到节点上查看说明")));
     descSummary->setWordWrap(true);
     descSummary->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     descSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -213,8 +213,8 @@ QMenu *create(QtNodes::BasicGraphicsScene *scene,
 
     auto showNodeHelp = [descTitle, descSummary, openHelpLink](const QString &name) {
         if (name.isEmpty()) {
-            descTitle->setText(trMenu("节点说明"));
-            descSummary->setText(trMenu("将鼠标移到节点上查看说明"));
+            descTitle->setText(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "节点说明")));
+            descSummary->setText(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "将鼠标移到节点上查看说明")));
             openHelpLink->clear();
             openHelpLink->setVisible(false);
             openHelpLink->setProperty("helpPath", QString());
@@ -227,7 +227,8 @@ QMenu *create(QtNodes::BasicGraphicsScene *scene,
             descSummary->setText(info.summary);
         } else {
             descSummary->setText(
-                trMenu("暂无文档摘要。可构建帮助站点后重试（docs/build_mkdocs.py）。"));
+                trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu",
+                        "暂无文档摘要。可构建帮助站点后重试（docs/build_mkdocs.py）。")));
         }
 
         const QString helpRoot = findHelpRootDir();
@@ -238,7 +239,7 @@ QMenu *create(QtNodes::BasicGraphicsScene *scene,
         if (!htmlPath.isEmpty() && QFile::exists(htmlPath)) {
             openHelpLink->setText(
                 QStringLiteral("<a href=\"help\" style=\"color:#81a4b2;\">%1</a>")
-                    .arg(trMenu("打开完整帮助")));
+                    .arg(trMenu(QT_TRANSLATE_NOOP("NodeCreateSceneMenu", "打开完整帮助"))));
             openHelpLink->setProperty("helpPath", htmlPath);
             openHelpLink->setVisible(true);
         } else {

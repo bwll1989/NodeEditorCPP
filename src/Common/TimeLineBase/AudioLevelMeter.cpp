@@ -38,9 +38,9 @@ float dbToNorm(float db) {
 
 AudioLevelMeter::AudioLevelMeter(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("audioLevelMeter"));
-    setToolTip(QStringLiteral("总输出电平（RMS，Gist 检测）：条色随电平渐变 绿→黄→红"
-                              "（-12dB 转黄、-3dB 转红）；白线 = 峰值保持。"
-                              "timeline 混音（TimelineAudioBusHost）电平可视化"));
+    setToolTip(tr("总输出电平（RMS，Gist 检测）：条色随电平渐变 绿→黄→红"
+                  "（-12dB 转黄、-3dB 转红）；白线 = 峰值保持。"
+                  "timeline 混音（TimelineAudioBusHost）电平可视化"));
     setFixedHeight(16);
     setMinimumWidth(90);
 }

@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "QCheckBox"
+#include <QCoreApplication>
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
 using namespace std;
@@ -32,18 +33,18 @@ namespace Nodes
         explicit HoldInterface(QWidget *parent = nullptr)
         {
             // 创建标签
-            auto timeLabel = new QLabel("Hold Time:");
+            auto timeLabel = new QLabel(QCoreApplication::translate("Nodes::HoldInterface", "保持时间："));
             auto unitLabel = new QLabel("ms");
-            auto modeLabel = new QLabel("重复信号处理:");
-            
+            auto modeLabel = new QLabel(QCoreApplication::translate("Nodes::HoldInterface", "重复信号处理:"));
+
             // 设置输入框默认值
             value->setValue(1000);
-            value->setToolTip("信号保持时间（毫秒）");
-            
+            value->setToolTip(QCoreApplication::translate("Nodes::HoldInterface", "信号保持时间（毫秒）"));
+
             // 设置重复信号处理模式选择框
-            ignoreRepeatCheckBox->setText("忽略重复信号");
+            ignoreRepeatCheckBox->setText(QCoreApplication::translate("Nodes::HoldInterface", "忽略重复信号"));
             ignoreRepeatCheckBox->setChecked(true); // 默认忽略重复信号
-            ignoreRepeatCheckBox->setToolTip("选中：保持期间忽略新信号\n取消：立即停止当前保持并处理新信号");
+            ignoreRepeatCheckBox->setToolTip(QCoreApplication::translate("Nodes::HoldInterface", "选中：保持期间忽略新信号\n取消：立即停止当前保持并处理新信号"));
             
             // 布局设置
             main_layout->addWidget(timeLabel, 0, 0);

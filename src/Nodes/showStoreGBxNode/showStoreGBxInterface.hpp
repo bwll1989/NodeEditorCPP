@@ -9,6 +9,7 @@
 #include <QSpinBox>
 #include <QHBoxLayout>
 #include <QSpacerItem>
+#include <QCoreApplication>
 
 class showStoreGBxInterface : public QWidget
 {
@@ -21,15 +22,15 @@ public:
     showStoreGBxInterface(QWidget *parent = nullptr)
         : QWidget(parent)
     {
-        Stop = new QPushButton(QStringLiteral("Stop"), this);
-        status = new QPushButton(QStringLiteral("Disconnected"), this);
+        Stop = new QPushButton(QCoreApplication::translate("showStoreGBxInterface", "停止"), this);
+        status = new QPushButton(QCoreApplication::translate("showStoreGBxInterface", "已断开"), this);
 
         auto layout = new QGridLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(6);
 
         _hostEdit = new QLineEdit("127.0.0.1", this);
-        layout->addWidget(new QLabel("Host:"), 0, 0, 1, 1);
+        layout->addWidget(new QLabel(QCoreApplication::translate("showStoreGBxInterface", "主机：")), 0, 0, 1, 1);
         layout->addWidget(_hostEdit, 0, 1, 1, 1);
 
         layout->addWidget(status, 1, 0, 1, 2);
@@ -38,7 +39,7 @@ public:
         status->setEnabled(false);
         
         for (int i = 0; i < 4; ++i) {
-            _playButtons[i] = new QPushButton(QString("Show%1").arg(i+1), this);
+            _playButtons[i] = new QPushButton(QCoreApplication::translate("showStoreGBxInterface", "展示%1").arg(i+1), this);
             _playButtons[i]->setEnabled(false); // 初始禁用输出复选框
             layout->addWidget(_playButtons[i], 2 + i, 0, 1, 2);
         }
@@ -99,7 +100,8 @@ public:
 
         }
         Stop->setEnabled(connected);
-        status->setText(connected?"Connected":"Disconnected");
+        status->setText(connected ? QCoreApplication::translate("showStoreGBxInterface", "已连接")
+                                  : QCoreApplication::translate("showStoreGBxInterface", "已断开"));
         status->setStyleSheet(connected?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
         status->setChecked(connected);
     }

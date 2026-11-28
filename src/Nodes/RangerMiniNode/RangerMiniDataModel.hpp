@@ -10,6 +10,7 @@
 #include "RangerMiniController.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -131,10 +132,10 @@ namespace Nodes
                 const double batt = status.value(QStringLiteral("battery_v")).toDouble();
                 const bool estop = status.value(QStringLiteral("estop")).toBool();
                 widget->statusLabel->setText(
-                    QStringLiteral("模式=%1  电压=%2V  急停=%3")
+                    QCoreApplication::translate("Nodes::RangerMiniDataModel", "模式=%1  电压=%2V  急停=%3")
                         .arg(mode)
                         .arg(batt, 0, 'f', 1)
-                        .arg(estop ? QStringLiteral("是") : QStringLiteral("否")));
+                        .arg(estop ? QCoreApplication::translate("Nodes::RangerMiniDataModel", "是") : QCoreApplication::translate("Nodes::RangerMiniDataModel", "否")));
                 Q_EMIT dataUpdated(0);
             }, Qt::QueuedConnection);
 

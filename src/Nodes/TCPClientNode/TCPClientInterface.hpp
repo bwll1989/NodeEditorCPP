@@ -12,6 +12,7 @@
 #include "QComboBox"
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QSpacerItem>
+#include <QCoreApplication>
 using namespace std;
 
 namespace Nodes
@@ -53,13 +54,13 @@ namespace Nodes
         QLineEdit* valueEdit=new QLineEdit();
         IntDragValueWidget* portSpinBox=new IntDragValueWidget();
         QLineEdit* hostEdit=new QLineEdit("127.0.0.1");
-        QPushButton* send=new QPushButton("Send");
+        QPushButton* send=new QPushButton(QCoreApplication::translate("Nodes::TCPClientInterface", "发送"));
         QComboBox* format=new QComboBox();
-        QPushButton* statusButton=new QPushButton("Disconnect");
+        QPushButton* statusButton=new QPushButton(QCoreApplication::translate("Nodes::TCPClientInterface", "断开"));
     private:
-        QLabel *hostLabel=new QLabel("Host  ");
-        QLabel *portLabel=new QLabel("Port  ");
-        QLabel *valueLabel=new QLabel("Value    ");
+        QLabel *hostLabel=new QLabel(QCoreApplication::translate("Nodes::TCPClientInterface", "主机："));
+        QLabel *portLabel=new QLabel(QCoreApplication::translate("Nodes::TCPClientInterface", "端口："));
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::TCPClientInterface", "值："));
 
     };
 }

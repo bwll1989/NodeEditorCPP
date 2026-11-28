@@ -16,6 +16,7 @@
 #include "RsPath.hpp"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -568,7 +569,7 @@ namespace Nodes
             double yawError = 0.0;
             double crossTrack = 0.0;
             double pathAlignError = 0.0;
-            QString modeText = QStringLiteral("空闲");
+            QString modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "空闲");
 
             if (!active) {
                 m_arrivedFired = false;
@@ -604,7 +605,7 @@ namespace Nodes
                     arrived = true;
                     vx = 0.0;
                     steer = 0.0;
-                    modeText = QStringLiteral("已到达");
+                    modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "已到达");
                     if (!m_arrivedFired) {
                         m_arrivedFired = true;
                         arrivedPulse = true; // ARRIVED 口只脉冲一次 true
@@ -624,14 +625,14 @@ namespace Nodes
                     }
 
                     if (!m_path.ok || m_path.samples.empty()) {
-                        modeText = QStringLiteral("规划失败");
+                        modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "规划失败");
                         vx = 0.0;
                         steer = 0.0;
                     } else {
                         const int gear = purePursuit(start, lEff, vx, steer, yawError, crossTrack,
                                                      pathAlignError);
                         reversing = gear < 0;
-                        modeText = reversing ? QStringLiteral("RS倒车跟踪") : QStringLiteral("RS前进跟踪");
+                        modeText = reversing ? QCoreApplication::translate("Nodes::NavControllerDataModel", "RS倒车跟踪") : QCoreApplication::translate("Nodes::NavControllerDataModel", "RS前进跟踪");
 
                         // 近终点：PP 航向弱，用慢速 + 航向 P 纠偏（阿克曼需 |v|>0 才能转 yaw）
                         if (distance < std::max(0.40, 2.5 * m_arriveDist)
@@ -640,7 +641,7 @@ namespace Nodes
                             const double thetaDot = 1.5 * yawErrGoal;
                             vx = creep;
                             steer = std::clamp(std::atan(thetaDot * lEff / creep), -m_maxSteer, m_maxSteer);
-                            modeText = QStringLiteral("近点航向纠偏");
+                            modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "近点航向纠偏");
                         }
 
                         // 相对路径最近点：距离过大 或 航向差≥约90° → 重规划（冷却 1s）
@@ -652,11 +653,11 @@ namespace Nodes
                         if ((crossBad || yawBad) && (nowMs - m_lastReplanMs) >= 1000) {
                             m_needReplan = true;
                             if (crossBad && yawBad) {
-                                modeText = QStringLiteral("位姿偏差·重规划");
+                                modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "位姿偏差·重规划");
                             } else if (crossBad) {
-                                modeText = QStringLiteral("横向偏差·重规划");
+                                modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "横向偏差·重规划");
                             } else {
-                                modeText = QStringLiteral("航向偏差·重规划");
+                                modeText = QCoreApplication::translate("Nodes::NavControllerDataModel", "航向偏差·重规划");
                             }
                         }
                     }

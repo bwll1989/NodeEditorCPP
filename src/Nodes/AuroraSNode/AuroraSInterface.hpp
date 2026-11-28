@@ -9,6 +9,7 @@
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QPushButton>
+#include <QCoreApplication>
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
@@ -39,10 +40,10 @@ namespace Nodes
         {
             connectionStatus->setChecked(connected);
             if (connected) {
-                connectionStatus->setText(QStringLiteral("已连接"));
+                connectionStatus->setText(QCoreApplication::translate("Nodes::AuroraSInterface", "已连接"));
                 connectionStatus->setStyleSheet(QStringLiteral("color: green; font-weight: bold;"));
             } else {
-                connectionStatus->setText(QStringLiteral("未连接"));
+                connectionStatus->setText(QCoreApplication::translate("Nodes::AuroraSInterface", "未连接"));
                 connectionStatus->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
                 clearPoseInfo();
                 clearLocalizationInfo();
@@ -108,8 +109,8 @@ namespace Nodes
         /// 媒体库 Unknown 分类下的 .stcm 地图选择器
         SelectorComboBox* mapFileSelector =
             new SelectorComboBox(MediaLibrary::Category::Unknown, this);
-        QPushButton* connectionStatus = new QPushButton(QStringLiteral("未连接"));
-        QPushButton* reinitializeButton = new QPushButton(QStringLiteral("重新初始化"));
+        QPushButton* connectionStatus = new QPushButton(QCoreApplication::translate("Nodes::AuroraSInterface", "未连接"));
+        QPushButton* reinitializeButton = new QPushButton(QCoreApplication::translate("Nodes::AuroraSInterface", "重新初始化"));
 
     private:
         void clearPoseInfo()
@@ -126,12 +127,12 @@ namespace Nodes
 
         void createConnectionGroup(QVBoxLayout* mainLayout)
         {
-            auto* group = new QGroupBox(QStringLiteral("连接设置"), this);
+            auto* group = new QGroupBox(QCoreApplication::translate("Nodes::AuroraSInterface", "连接设置"), this);
             auto* layout = new QGridLayout(group);
 
-            layout->addWidget(new QLabel(QStringLiteral("设备地址:")), 0, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::AuroraSInterface", "设备地址:")), 0, 0);
             layout->addWidget(hostEdit, 0, 1);
-            layout->addWidget(new QLabel(QStringLiteral("地图数据:")), 1, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::AuroraSInterface", "地图数据:")), 1, 0);
             layout->addWidget(mapFileSelector, 1, 1);
 
             connectionStatus->setCheckable(true);
@@ -153,26 +154,26 @@ namespace Nodes
 
         void createLocalizationGroup(QVBoxLayout* mainLayout)
         {
-            auto* group = new QGroupBox(QStringLiteral("定位状态"), this);
+            auto* group = new QGroupBox(QCoreApplication::translate("Nodes::AuroraSInterface", "定位状态"), this);
             auto* layout = new QGridLayout(group);
 
             localizationStatusLabel = createValueLabel();
-            addInfoRow(layout, 0, QStringLiteral("状态"), localizationStatusLabel);
+            addInfoRow(layout, 0, QCoreApplication::translate("Nodes::AuroraSInterface", "状态"), localizationStatusLabel);
 
             mainLayout->addWidget(group);
         }
 
         void createPoseGroup(QVBoxLayout* mainLayout)
         {
-            auto* group = new QGroupBox(QStringLiteral("位姿 (50 Hz)"), this);
+            auto* group = new QGroupBox(QCoreApplication::translate("Nodes::AuroraSInterface", "位姿 (50 Hz)"), this);
             auto* layout = new QGridLayout(group);
 
             orientationLabel = createValueLabel();
             positionLabel = createValueLabel();
 
             int row = 0;
-            addInfoRow(layout, row++, QStringLiteral("姿态 (Roll/Pitch/Yaw)"), orientationLabel);
-            addInfoRow(layout, row++, QStringLiteral("位置 (X/Y/Z)"), positionLabel);
+            addInfoRow(layout, row++, QCoreApplication::translate("Nodes::AuroraSInterface", "姿态 (Roll/Pitch/Yaw)"), orientationLabel);
+            addInfoRow(layout, row++, QCoreApplication::translate("Nodes::AuroraSInterface", "位置 (X/Y/Z)"), positionLabel);
 
             mainLayout->addWidget(group);
             mainLayout->addStretch();

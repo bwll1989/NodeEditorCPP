@@ -21,6 +21,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/qglobal.h>
+#include <QCoreApplication>
 #include <QSignalBlocker>
 #include <QTimer>
 #include <QUrl>
@@ -424,7 +425,7 @@ namespace Nodes
         {
             if (m_pendingRequest) {
                 m_resendPending = true;
-                widget->statusLabel->setText(QStringLiteral("Queued..."));
+                widget->statusLabel->setText(QCoreApplication::translate("Nodes::HttpClientDataModel", "已排队..."));
                 return;
             }
 
@@ -432,7 +433,7 @@ namespace Nodes
 
             const QUrl url = buildUrl();
             if (!url.isValid() || url.host().isEmpty()) {
-                widget->statusLabel->setText(QStringLiteral("Invalid URL"));
+                widget->statusLabel->setText(QCoreApplication::translate("Nodes::HttpClientDataModel", "无效的 URL"));
                 publishError(QStringLiteral("Invalid URL: ") + url.toString());
                 return;
             }
@@ -465,13 +466,13 @@ namespace Nodes
             }
 
             if (!reply) {
-                widget->statusLabel->setText(QStringLiteral("Request failed"));
+                widget->statusLabel->setText(QCoreApplication::translate("Nodes::HttpClientDataModel", "请求失败"));
                 publishError(QStringLiteral("Failed to create request"));
                 return;
             }
 
             m_pendingRequest = true;
-            widget->statusLabel->setText(QStringLiteral("Sending %1 %2").arg(widget->method->currentText(), url.toString()));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::HttpClientDataModel", "发送中 %1 %2").arg(widget->method->currentText(), url.toString()));
             widget->sendButton->setEnabled(false);
             AbstractDelegateModel::stateFeedBack("/send", true);
         }
@@ -523,7 +524,7 @@ namespace Nodes
 
             widget->statusLabel->setText(
                 success ? QStringLiteral("OK %1").arg(statusCode)
-                        : QStringLiteral("Error %1: %2").arg(statusCode).arg(reply->errorString()));
+                        : QCoreApplication::translate("Nodes::HttpClientDataModel", "错误 %1: %2").arg(statusCode).arg(reply->errorString()));
 
             reply->deleteLater();
 

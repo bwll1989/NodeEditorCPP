@@ -15,6 +15,7 @@
 #include <QDateTime>
 #include <QCheckBox>
 #include <QSpacerItem>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -70,15 +71,15 @@ namespace Nodes
          */
         void updateConnectionStatus(bool connected) {
             if (connected) {
-                m_connectionStatusLabel->setText("状态: 发送中");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::SpoutOutInterface", "状态: 发送中"));
                 m_connectionStatusLabel->setStyleSheet("color: green; font-weight: bold;");
-                m_startStopButton->setText("停止");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::SpoutOutInterface", "停止"));
                 m_isSending = true;
                 m_senderNameEdit->setEnabled(false); // 发送时不可更改名称
             } else {
-                m_connectionStatusLabel->setText("状态: 已停止");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::SpoutOutInterface", "状态: 已停止"));
                 m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-                m_startStopButton->setText("开始");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::SpoutOutInterface", "开始"));
                 m_isSending = false;
                 m_senderNameEdit->setEnabled(true);
             }
@@ -125,7 +126,7 @@ namespace Nodes
          * @brief 创建发送器设置组
          */
         void createSenderGroup() {
-            m_senderGroup = new QGroupBox("Spout发送设置", this);
+            m_senderGroup = new QGroupBox(QCoreApplication::translate("Nodes::SpoutOutInterface", "Spout发送设置"), this);
             auto *layout = new QVBoxLayout(m_senderGroup);
             layout->setContentsMargins(6, 6, 6, 6);
             layout->setSpacing(6);
@@ -135,7 +136,7 @@ namespace Nodes
             nameLayout->setContentsMargins(0, 0, 0, 0);
             nameLayout->setSpacing(8);
 
-            nameLayout->addWidget(new QLabel("发送器名称:", nameRow), 0);
+            nameLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SpoutOutInterface", "发送器名称:"), nameRow), 0);
             m_senderNameEdit = new QLineEdit("NodeEditor Spout", nameRow);
             m_currentSenderName = "NodeEditor Spout";
             nameLayout->addWidget(m_senderNameEdit, 1);
@@ -145,11 +146,11 @@ namespace Nodes
                     this, &SpoutOutInterface::onSenderNameEditingFinished);
 
             // 开始/停止按钮
-            m_startStopButton = new QPushButton("开始");
+            m_startStopButton = new QPushButton(QCoreApplication::translate("Nodes::SpoutOutInterface", "开始"));
             connect(m_startStopButton, &QPushButton::clicked,
                     this, &SpoutOutInterface::onStartStopClicked);
             layout->addWidget(m_startStopButton);
-            m_connectionStatusLabel = new QLabel("状态: 未发送");
+            m_connectionStatusLabel = new QLabel(QCoreApplication::translate("Nodes::SpoutOutInterface", "状态: 未发送"));
             m_connectionStatusLabel->setAlignment(Qt::AlignCenter);
             m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
             layout->addWidget(m_connectionStatusLabel);

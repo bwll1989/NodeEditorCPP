@@ -229,7 +229,7 @@ bool CameraCaptureThread::openDevice(const QString& deviceName)
 
     const AVInputFormat* inputFormat = av_find_input_format("dshow");
     if (!inputFormat) {
-        emit errorOccurred(QStringLiteral("未找到 dshow 输入格式（请确认已链接项目 FFmpeg avdevice）"));
+        emit errorOccurred(tr("未找到 dshow 输入格式（请确认已链接项目 FFmpeg avdevice）"));
         return false;
     }
 
@@ -258,7 +258,7 @@ bool CameraCaptureThread::openDevice(const QString& deviceName)
         m_formatContext = avformat_alloc_context();
         if (!m_formatContext) {
             emit errorOccurred(
-                QStringLiteral("无法打开摄像头 \"%1\": %2").arg(deviceName, avErrorString(openRet)));
+                tr("无法打开摄像头 \"%1\": %2").arg(deviceName, avErrorString(openRet)));
             return false;
         }
         m_formatContext->interrupt_callback.callback = interruptCallback;
@@ -270,21 +270,21 @@ bool CameraCaptureThread::openDevice(const QString& deviceName)
 
     if (openRet < 0) {
         emit errorOccurred(
-            QStringLiteral("无法打开摄像头 \"%1\": %2").arg(deviceName, avErrorString(openRet)));
+            tr("无法打开摄像头 \"%1\": %2").arg(deviceName, avErrorString(openRet)));
         m_formatContext = nullptr;
         return false;
     }
 
     if (avformat_find_stream_info(m_formatContext, nullptr) < 0) {
         cleanupFFmpeg();
-        emit errorOccurred(QStringLiteral("无法读取摄像头流信息"));
+        emit errorOccurred(tr("无法读取摄像头流信息"));
         return false;
     }
 
     m_videoStreamIndex = av_find_best_stream(m_formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (m_videoStreamIndex < 0) {
         cleanupFFmpeg();
-        emit errorOccurred(QStringLiteral("摄像头无视频流"));
+        emit errorOccurred(tr("摄像头无视频流"));
         return false;
     }
 
@@ -292,7 +292,7 @@ bool CameraCaptureThread::openDevice(const QString& deviceName)
     const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
     if (!codec) {
         cleanupFFmpeg();
-        emit errorOccurred(QStringLiteral("找不到视频解码器"));
+        emit errorOccurred(tr("找不到视频解码器"));
         return false;
     }
 
@@ -305,7 +305,7 @@ bool CameraCaptureThread::openDevice(const QString& deviceName)
     if (avcodec_parameters_to_context(m_codecContext, codecpar) < 0
         || avcodec_open2(m_codecContext, codec, nullptr) < 0) {
         cleanupFFmpeg();
-        emit errorOccurred(QStringLiteral("打开视频解码器失败"));
+        emit errorOccurred(tr("打开视频解码器失败"));
         return false;
     }
 

@@ -289,7 +289,7 @@ int OscCalendarWidget::maxChipsForHeight(int cellHeight)
 QString OscCalendarWidget::shortAddress(const QString& address)
 {
     if (address.isEmpty()) {
-        return QStringLiteral("(空)");
+        return tr("(空)");
     }
     const int slash = address.lastIndexOf(QLatin1Char('/'));
     return (slash >= 0 && slash + 1 < address.size()) ? address.mid(slash + 1) : address;

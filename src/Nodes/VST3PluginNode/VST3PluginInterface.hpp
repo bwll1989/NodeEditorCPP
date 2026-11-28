@@ -7,6 +7,7 @@
 #include "QComboBox"
 #include "QLayout"
 #include <QThread>
+#include <QCoreApplication>
 using namespace std;
 namespace Nodes
 {
@@ -16,7 +17,7 @@ namespace Nodes
         explicit VST3PluginInterface(QWidget *parent = nullptr){
             // browser=new QPropertyBrowser(this);
             // SelectVST=new QPushButton("Select");
-            ShowController=new QPushButton("Controller");
+            ShowController=new QPushButton(QCoreApplication::translate("Nodes::VST3PluginInterface", "控制器"));
             //        browser->addFixedProperties(QMetaType::Bool,"Select", false);
             //        connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&VST3PluginInterface::valueChanged);
             // main_layout->addWidget(SelectVST,0,0,1,1);

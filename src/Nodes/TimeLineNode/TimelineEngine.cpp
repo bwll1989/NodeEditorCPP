@@ -178,11 +178,11 @@ ClipTimePanel::ClipTimePanel(TimeLineClipModel* owner, QWidget* parent)
     : m_owner(owner),
     QGroupBox(parent)
 {
-    setTitle(tr("时间属性"));
+    setTitle(QCoreApplication::translate("ClipTimePanel", "时间属性"));
     m_timeLayout = new QGridLayout(this);
 
     // 开始帧显示
-    auto startLabel = new QLabel(tr("开始帧:"), this);
+    auto startLabel = new QLabel(QCoreApplication::translate("ClipTimePanel", "开始帧:"), this);
     m_startFrameSpinBox = new IntDragValueWidget(this);
     m_startFrameSpinBox->setRange(0, 9999999);
     // m_startFrameSpinBox->setValue(m_owner->start());
@@ -193,7 +193,7 @@ ClipTimePanel::ClipTimePanel(TimeLineClipModel* owner, QWidget* parent)
     m_timeLayout->addWidget(m_startTimeCodeLineEdit, 0, 2,1,1);
 
     // 片段总长显示（绝对时间：毫秒）
-    auto lengthLabel = new QLabel(tr("片段位置:"), this);
+    auto lengthLabel = new QLabel(QCoreApplication::translate("ClipTimePanel", "片段位置:"), this);
     m_positionFrameSpinBox = new IntDragValueWidget(this);
     m_positionFrameSpinBox->setRange(0, 9999999);
     m_positionTimeLineEdit = new QTimeEdit(this);
@@ -203,7 +203,7 @@ ClipTimePanel::ClipTimePanel(TimeLineClipModel* owner, QWidget* parent)
     m_timeLayout->addWidget(m_positionTimeLineEdit, 1, 2,1,1);
 
     // 结束帧显示（绝对时间：毫秒）
-    auto endLabel = new QLabel(tr("结束帧:"), this);
+    auto endLabel = new QLabel(QCoreApplication::translate("ClipTimePanel", "结束帧:"), this);
     m_endFrameSpinBox = new IntDragValueWidget(this);
     m_endFrameSpinBox->setRange(0, 9999999);
     m_endTimeCodeLineEdit = new QTimeEdit(this);
@@ -380,7 +380,7 @@ ClipAppearancePanel::ClipAppearancePanel(TimeLineClipModel* owner, QWidget* pare
     : QGroupBox(parent)
     , m_owner(owner)
 {
-    setTitle(tr("片段属性"));
+    setTitle(QCoreApplication::translate("ClipAppearancePanel", "片段属性"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -388,7 +388,7 @@ ClipAppearancePanel::ClipAppearancePanel(TimeLineClipModel* owner, QWidget* pare
 
     auto* colorRow = new QHBoxLayout();
     colorRow->setSpacing(4);
-    colorRow->addWidget(new QLabel(tr("颜色:"), this));
+    colorRow->addWidget(new QLabel(QCoreApplication::translate("ClipAppearancePanel", "颜色:"), this));
 
     m_currentColor = new QLabel(this);
     m_currentColor->setFixedSize(22, 22);
@@ -416,9 +416,9 @@ ClipAppearancePanel::ClipAppearancePanel(TimeLineClipModel* owner, QWidget* pare
 
     auto* noteRow = new QHBoxLayout();
     noteRow->setSpacing(4);
-    noteRow->addWidget(new QLabel(tr("备注名:"), this));
+    noteRow->addWidget(new QLabel(QCoreApplication::translate("ClipAppearancePanel", "备注名:"), this));
     m_noteEdit = new QLineEdit(this);
-    m_noteEdit->setPlaceholderText(tr("留空则显示类型名"));
+    m_noteEdit->setPlaceholderText(QCoreApplication::translate("ClipAppearancePanel", "留空则显示类型名"));
     noteRow->addWidget(m_noteEdit, 1);
     layout->addLayout(noteRow);
 
@@ -685,7 +685,7 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             case Qt::ToolTipRole:
                 // 【2026-11-20 人话化】（插件版副本同步库版）μs 原值改易读
                 // 时间区间 + 时长。
-                return QVariant::fromValue(QStringLiteral("%1: %2 → %3（时长 %4）")
+                return QVariant::fromValue(QCoreApplication::translate("BaseTimeLineModel", "%1: %2 → %3（时长 %4）")
                     .arg(clip->type(),
                          QtTimeline::usToClockString(clip->start()),
                          QtTimeline::usToClockString(clip->end()),
@@ -3447,12 +3447,12 @@ void BaseTracklistView::contextMenuEvent(QContextMenuEvent* event) {
         QMenu contextMenu(this);
         //qDebug()<<"contextMenuEvent";
         // Add track creation submenu
-        QMenu* addTrackMenu = contextMenu.addMenu("Add Track ");
+        QMenu* addTrackMenu = contextMenu.addMenu(QCoreApplication::translate("BaseTimeLineModel", "添加轨道"));
         addTrackMenu->setIcon(QIcon(":/tlnode/icons/add.png"));
         // Get available track types from BasePluginLoader
         QStringList availableTypes = Model->getPluginLoader()->getAvailableTypes();
         for (const QString& type : availableTypes) {
-            QAction* addTrackAction = addTrackMenu->addAction("Add " + type + " Track");
+            QAction* addTrackAction = addTrackMenu->addAction(QCoreApplication::translate("BaseTimeLineModel", "添加 %1 轨道").arg(type));
             connect(addTrackAction, &QAction::triggered, [this, type]() {
                 Model->onAddTrack(type);
             });
@@ -3965,6 +3965,7 @@ void BaseTracklistView::dropEvent(QDropEvent *event) {
 #include <QStyle>
 #include <QApplication>
 #include <QClipboard>
+#include <QCoreApplication>
 
 BaseTimelineToolbar::BaseTimelineToolbar(QWidget* parent)
     : QToolBar(parent),

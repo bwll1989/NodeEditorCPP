@@ -1,6 +1,7 @@
 #pragma once
 #include "QtNodes/NodeDelegateModel"
 #include <QtCore/QObject>
+#include <QCoreApplication>
 #include <iostream>
 #include <QPushButton>
 #include "Common/DataTypes/NodeDataList.hpp"
@@ -121,7 +122,7 @@ namespace Nodes
                         isReady = false;
                         widget->waveformWidget->setPeaks(nullptr);
                         widget->waveformWidget->setDurationSec(0.0);
-                        widget->waveformWidget->setPlaceholderText(QStringLiteral("音频初始化失败"));
+                        widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "音频初始化失败"));
                         return;
                     }
                     isReady = true;
@@ -136,7 +137,7 @@ namespace Nodes
                     isReady = false;
                     widget->waveformWidget->setPeaks(nullptr);
                     widget->waveformWidget->setDurationSec(0.0);
-                    widget->waveformWidget->setPlaceholderText(QStringLiteral("请先选择音频文件"));
+                    widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "请先选择音频文件"));
                     // 换空文件时取消正在进行的解码，避免回调把旧 peaks 写回来
                     abortPeakDecoding();
                 }
@@ -170,7 +171,9 @@ namespace Nodes
                     // 避免 autoExclusive 导致无法取消勾选
                     widget->playButton->setAutoExclusive(false);
                     widget->playButton->setChecked(playing);
-                    widget->playButton->setText(playing ? QStringLiteral("Stop") : QStringLiteral("Play"));
+                    widget->playButton->setText(playing
+                        ? QCoreApplication::translate("Nodes::AudioDecoderDataModel", "停止")
+                        : QCoreApplication::translate("Nodes::AudioDecoderDataModel", "播放"));
                 }
                 // EOF 复位只同步属性/按钮，避免再次 stopPlay 与线程 wait 纠缠
                 if (m_suppressPlaySideEffects) {
@@ -220,7 +223,7 @@ namespace Nodes
                     QSignalBlocker blocker(widget->playButton);
                     widget->playButton->setAutoExclusive(false);
                     widget->playButton->setChecked(false);
-                    widget->playButton->setText(QStringLiteral("Play"));
+                    widget->playButton->setText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "播放"));
                 }
                 if (widget->waveformWidget) {
                     widget->waveformWidget->setPlayheadSec(0.0);
@@ -438,7 +441,7 @@ namespace Nodes
                     startPeakDecodingForPath(absPath);
                 } else {
                     widget->waveformWidget->setPeaks(nullptr);
-                    widget->waveformWidget->setPlaceholderText(QStringLiteral("音频初始化失败"));
+                    widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "音频初始化失败"));
                 }
             }
 
@@ -742,7 +745,7 @@ namespace Nodes
                 widget->waveformWidget->setPlayheadSec(-1.0);
             } else {
                 // 失败：保留之前的 demo 波形，右下角提示"解码失败，显示占位波形"
-                widget->waveformWidget->setPlaceholderText(QStringLiteral("波形解码失败，显示占位波形"));
+                widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "波形解码失败，显示占位波形"));
             }
         }
 
@@ -757,7 +760,7 @@ namespace Nodes
             if (!m_peakWatcher) return;
             const QFileInfo fi(absoluteFilePath);
             if (!fi.exists()) {
-                widget->waveformWidget->setPlaceholderText(QStringLiteral("文件不存在"));
+                widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "文件不存在"));
                 return;
             }
             // 1. 缓存命中：直接同步 setPeaks，不走异步
@@ -772,7 +775,7 @@ namespace Nodes
             if (m_peakWatcher->isRunning()) {
                 // QtConcurrent::run 的 future 默认不支持 cancel，我们只靠 ABA 检查在 finished 时丢弃
             }
-            widget->waveformWidget->setPlaceholderText(QStringLiteral("正在生成波形…"));
+            widget->waveformWidget->setPlaceholderText(QCoreApplication::translate("Nodes::AudioDecoderDataModel", "正在生成波形…"));
             m_peakDecodingPath = absoluteFilePath;
 
             QFuture<std::shared_ptr<AudioWaveformPeaks>> future = QtConcurrent::run(

@@ -13,6 +13,7 @@
 #include <QWidget>
 
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes {
 
@@ -29,7 +30,7 @@ public:
         auto *hostLayout = new QHBoxLayout(hostRow);
         hostLayout->setContentsMargins(0, 0, 0, 0);
         hostLayout->setSpacing(8);
-        hostLayout->addWidget(new QLabel(QStringLiteral("Host:")));
+        hostLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SyncInInterface", "主机：")));
         hostEdit->setPlaceholderText(QStringLiteral("127.0.0.1"));
         hostEdit->setText(QStringLiteral("127.0.0.1"));
         hostLayout->addWidget(hostEdit, 1);
@@ -39,25 +40,25 @@ public:
         auto *portLayout = new QHBoxLayout(portRow);
         portLayout->setContentsMargins(0, 0, 0, 0);
         portLayout->setSpacing(8);
-        portLayout->addWidget(new QLabel(QStringLiteral("Port:")));
+        portLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SyncInInterface", "端口：")));
         portSpin->setRange(1, 65535);
         portSpin->setValue(9100);
         portLayout->addWidget(portSpin, 1);
         layout->addWidget(portRow);
 
-        activeCheck->setText(QStringLiteral("启用"));
+        activeCheck->setText(QCoreApplication::translate("Nodes::SyncInInterface", "启用"));
         activeCheck->setChecked(true);
-        activeCheck->setToolTip(QStringLiteral("关闭后断开 TCP 并停止重连"));
+        activeCheck->setToolTip(QCoreApplication::translate("Nodes::SyncInInterface", "关闭后断开 TCP 并停止重连"));
         layout->addWidget(activeCheck);
 
         connectionLabel->setFlat(true);
         connectionLabel->setCheckable(true);
         connectionLabel->setEnabled(false);
-        connectionLabel->setText(QStringLiteral("状态: 未连接"));
+        connectionLabel->setText(QCoreApplication::translate("Nodes::SyncInInterface", "状态: 未连接"));
         connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
         layout->addWidget(connectionLabel);
 
-        sourceLabel->setText(QStringLiteral("对端: —"));
+        sourceLabel->setText(QCoreApplication::translate("Nodes::SyncInInterface", "对端: —"));
         sourceLabel->setWordWrap(true);
         sourceLabel->setStyleSheet(QStringLiteral("color: gray;"));
         layout->addWidget(sourceLabel);
@@ -69,8 +70,8 @@ public:
     {
         connectionLabel->setChecked(connected);
         connectionLabel->setText(connected
-                                     ? QStringLiteral("状态: 已连接")
-                                     : QStringLiteral("状态: 未连接"));
+                                     ? QCoreApplication::translate("Nodes::SyncInInterface", "状态: 已连接")
+                                     : QCoreApplication::translate("Nodes::SyncInInterface", "状态: 未连接"));
         connectionLabel->setStyleSheet(connected
                                            ? QStringLiteral("color: green; font-weight: bold;")
                                            : QStringLiteral("color: red; font-weight: bold;"));
@@ -79,8 +80,8 @@ public:
     void updateSource(const QString &source)
     {
         sourceLabel->setText(source.isEmpty()
-                                 ? QStringLiteral("对端: —")
-                                 : QStringLiteral("对端: %1").arg(source));
+                                 ? QCoreApplication::translate("Nodes::SyncInInterface", "对端: —")
+                                 : QCoreApplication::translate("Nodes::SyncInInterface", "对端: %1").arg(source));
     }
 
     QLineEdit *hostEdit = new QLineEdit();

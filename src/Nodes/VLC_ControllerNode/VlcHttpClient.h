@@ -24,6 +24,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -162,7 +163,7 @@ namespace Nodes
             if (parseError.error != QJsonParseError::NoError) {
                 const QString preview = QString::fromUtf8(body.left(120)).trimmed();
                 emit requestFailed(
-                    QString("JSON 解析失败 (HTTP %1): %2。片段: %3")
+                    QCoreApplication::translate("Nodes::VlcHttpClient", "JSON 解析失败 (HTTP %1): %2。片段: %3")
                         .arg(httpStatus)
                         .arg(parseError.errorString())
                         .arg(preview),
@@ -183,7 +184,7 @@ namespace Nodes
                 return;
             }
 
-            emit requestFailed(QString("未知 JSON 格式 (HTTP %1)").arg(httpStatus), httpStatus);
+            emit requestFailed(QCoreApplication::translate("Nodes::VlcHttpClient", "未知 JSON 格式 (HTTP %1)").arg(httpStatus), httpStatus);
         }
 
         QNetworkAccessManager manager_;

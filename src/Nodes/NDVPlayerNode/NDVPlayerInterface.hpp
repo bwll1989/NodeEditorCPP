@@ -12,6 +12,7 @@
 #include <QSpacerItem>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -35,24 +36,24 @@ namespace Nodes
                 layout->addWidget(row);
             };
 
-            addRow(QStringLiteral("Player ID:"), PlayerID);
+            addRow(QCoreApplication::translate("Nodes::NDVPlayerInterface", "播放器 ID："), PlayerID);
             PlayerID->setRange(1, 99);
             PlayerID->setValue(1);
 
-            addRow(QStringLiteral("File Index:"), FileIndex);
+            addRow(QCoreApplication::translate("Nodes::NDVPlayerInterface", "文件序号："), FileIndex);
             FileIndex->setRange(0, 100);
             FileIndex->setValue(0);
 
             connectionButton->setFlat(true);
             connectionButton->setCheckable(true);
             connectionButton->setEnabled(false);
-            connectionButton->setText(QStringLiteral("连接: 离线"));
+            connectionButton->setText(QCoreApplication::translate("Nodes::NDVPlayerInterface", "连接: 离线"));
             connectionButton->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             hostButton->setFlat(true);
             hostButton->setCheckable(false);
             hostButton->setEnabled(false);
-            hostButton->setText(QStringLiteral("Host: —"));
+            hostButton->setText(QCoreApplication::translate("Nodes::NDVPlayerInterface", "主机: —"));
             hostButton->setStyleSheet(QStringLiteral("color: gray;"));
 
             layout->addWidget(connectionButton);
@@ -69,14 +70,14 @@ namespace Nodes
         {
             connectionButton->setChecked(online);
             connectionButton->setText(online
-                                          ? QStringLiteral("连接: 在线")
-                                          : QStringLiteral("连接: 离线"));
+                                          ? QCoreApplication::translate("Nodes::NDVPlayerInterface", "连接: 在线")
+                                          : QCoreApplication::translate("Nodes::NDVPlayerInterface", "连接: 离线"));
             connectionButton->setStyleSheet(online
                                                 ? QStringLiteral("color: green; font-weight: bold;")
                                                 : QStringLiteral("color: red; font-weight: bold;"));
 
             const QString ipText = ip.isEmpty() ? QStringLiteral("—") : ip;
-            hostButton->setText(QStringLiteral("Host: %1").arg(ipText));
+            hostButton->setText(QCoreApplication::translate("Nodes::NDVPlayerInterface", "主机: %1").arg(ipText));
             hostButton->setStyleSheet(online
                                           ? QStringLiteral("color: green;")
                                           : QStringLiteral("color: gray;"));
@@ -86,8 +87,8 @@ namespace Nodes
         IntDragValueWidget *FileIndex = new IntDragValueWidget(this);
         QPushButton *connectionButton = new QPushButton(this);
         QPushButton *hostButton = new QPushButton(this);
-        QPushButton *Play = new QPushButton(QStringLiteral("Play"), this);
-        QPushButton *LoopPlay = new QPushButton(QStringLiteral("Loop Play"), this);
-        QPushButton *Stop = new QPushButton(QStringLiteral("Stop"), this);
+        QPushButton *Play = new QPushButton(QCoreApplication::translate("Nodes::NDVPlayerInterface", "播放"), this);
+        QPushButton *LoopPlay = new QPushButton(QCoreApplication::translate("Nodes::NDVPlayerInterface", "循环播放"), this);
+        QPushButton *Stop = new QPushButton(QCoreApplication::translate("Nodes::NDVPlayerInterface", "停止"), this);
     };
 }

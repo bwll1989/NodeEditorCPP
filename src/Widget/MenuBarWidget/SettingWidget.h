@@ -31,7 +31,8 @@ private:
 
     // General Settings
     IntDragValueWidget* m_maxRecentFilesSpin;
-    QCheckBox* m_darkThemeCheck;
+    QComboBox* m_themeCombo; ///< 主题（i18n，浅色/深色 → General/DefaultDarkTheme，随确认保存，重启生效）
+    QComboBox* m_languageCombo; ///< 界面语言（i18n，General/Language，随确认保存，重启生效）
     QCheckBox* m_autosaveEnabledCheck;
     IntDragValueWidget* m_autosaveIntervalSpin;
     QLabel* m_timestampFrameRateLabel;

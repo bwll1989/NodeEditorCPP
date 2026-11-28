@@ -15,6 +15,7 @@
 
 #include <QPointer>
 #include <atomic>
+#include <QCoreApplication>
 
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
@@ -225,7 +226,7 @@ public slots:
             return;
         }
         if (m_file.isEmpty()) {
-            updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
+            updateNodeState(QtNodes::NodeValidationState::State::Error, QCoreApplication::translate("Nodes::ToAudioFileDataModel", "请设置输出文件名"));
             if (ToAudioFileInterface* widget = _widget.data()) {
                 widget->setRecording(false);
             }

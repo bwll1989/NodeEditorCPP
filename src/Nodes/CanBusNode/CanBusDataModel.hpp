@@ -2,6 +2,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/qglobal.h>
+#include <QCoreApplication>
 #include <QGridLayout>
 #include <QtWidgets/QLineEdit>
 
@@ -97,7 +98,9 @@ namespace Nodes
                 }
 
                 QSignalBlocker blocker(widget->statusButton);
-                widget->statusButton->setText(ready ? QStringLiteral("Connected") : QStringLiteral("Disconnected"));
+                widget->statusButton->setText(ready
+                    ? QCoreApplication::translate("Nodes::CanBusDataModel", "已连接")
+                    : QCoreApplication::translate("Nodes::CanBusDataModel", "已断开"));
                 widget->statusButton->setChecked(ready);
                 widget->statusButton->setStyleSheet(ready ? QStringLiteral("color: green; font-weight: bold;")
                                                           : QStringLiteral("color: red; font-weight: bold;"));

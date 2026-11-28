@@ -12,6 +12,7 @@
 #include "Common/AppConfig/ConstantDefines.h"
 
 #include <QtWebSockets/QWebSocket>
+#include <QCoreApplication>
 #include <QJsonObject>
 #include <QPointer>
 #include <QSignalBlocker>
@@ -291,9 +292,9 @@ namespace Nodes
                 return;
             }
             if (m_talking) {
-                widget->setStatusText(QStringLiteral("Talking" ));
+                widget->setStatusText(QCoreApplication::translate("Nodes::WebMicDataModel", "说话中"));
             } else {
-                widget->setStatusText(QStringLiteral("Listening"));
+                widget->setStatusText(QCoreApplication::translate("Nodes::WebMicDataModel", "监听中"));
             }
         }
 

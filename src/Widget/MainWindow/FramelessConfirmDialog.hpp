@@ -25,9 +25,9 @@ public:
     };
 
     struct ButtonTexts {
-        QString primary = QStringLiteral("确定");
-        QString secondary = QStringLiteral("否");
-        QString cancel = QStringLiteral("取消");
+        QString primary = tr("确定");
+        QString secondary = tr("否");
+        QString cancel = tr("取消");
     };
 
     explicit FramelessConfirmDialog(const QString& title,

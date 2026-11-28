@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QLineEdit>
 #include "CompactTableView/CompactTableView.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -19,7 +20,7 @@ namespace Nodes
     {
         inline QString jsExpressionPlaceholderText()
         {
-            return QStringLiteral("JS Expression (e.g., \"input['key']\")");
+            return QCoreApplication::translate("Nodes::ValueLookupInterface", "JS 表达式（如 \"input['key']\"）");
         }
 
         class JsExpressionItemDelegate : public QStyledItemDelegate
@@ -213,7 +214,7 @@ namespace Nodes
 
         void setupUI()
         {
-            model->setHorizontalHeaderLabels({tr("Condition"), tr("Value"), tr("Action")});
+            model->setHorizontalHeaderLabels({QCoreApplication::translate("Nodes::ValueLookupInterface", "条件"), QCoreApplication::translate("Nodes::ValueLookupInterface", "值"), QCoreApplication::translate("Nodes::ValueLookupInterface", "动作")});
             tableView->setModel(model);
             tableView->setSortingEnabled(false);
             tableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -228,7 +229,7 @@ namespace Nodes
             tableView->setItemDelegateForColumn(0, expressionDelegate);
             tableView->setItemDelegateForColumn(1, expressionDelegate);
 
-            addRowButton = new QPushButton(tr("Add Rule"), this);
+            addRowButton = new QPushButton(QCoreApplication::translate("Nodes::ValueLookupInterface", "添加规则"), this);
             connect(addRowButton, &QPushButton::clicked, this, &ValueLookupInterface::addRow);
 
             auto *mainLayout = new QVBoxLayout(this);
@@ -257,7 +258,7 @@ namespace Nodes
         {
             clearActionButtons();
             for (int row = 0; row < model->rowCount(); ++row) {
-                auto *deleteButton = new QPushButton(tr("Delete"), this);
+                auto *deleteButton = new QPushButton(QCoreApplication::translate("Nodes::ValueLookupInterface", "删除"), this);
                 deleteButton->setFixedHeight(Gui::kCompactTableRowHeight - 4);
                 connect(deleteButton, &QPushButton::clicked, this, [this, row]() {
                     deleteRow(row);

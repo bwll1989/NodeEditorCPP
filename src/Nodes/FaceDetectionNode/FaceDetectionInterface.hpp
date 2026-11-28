@@ -7,6 +7,7 @@
 #include "QWidget"
 #include "QLayout"
 #include "QLabel"
+#include <QCoreApplication>
 #include <QGridLayout>
 #include <QSpacerItem>
 #include <QVariantMap>
@@ -28,7 +29,7 @@ class FaceDetectionInterface final : public QWidget{
             ConfidenceFilter->setSingleStep(0.01);
             ConfidenceFilter->setDecimals(2);
             ConfidenceFilter->setValue(0.25);
-            main_layout->addWidget(new QLabel("置信度阈值:", this), 0, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::FaceDetectionInterface", "置信度阈值:"), this), 0, 0);
             main_layout->addWidget(ConfidenceFilter, 0, 1);
 
             NmsFilter = new FloatDragValueWidget(this);
@@ -36,7 +37,7 @@ class FaceDetectionInterface final : public QWidget{
             NmsFilter->setSingleStep(0.01);
             NmsFilter->setDecimals(2);
             NmsFilter->setValue(0.45);
-            main_layout->addWidget(new QLabel("NMS阈值:", this), 1, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::FaceDetectionInterface", "NMS阈值:"), this), 1, 0);
             main_layout->addWidget(NmsFilter, 1, 1);
 
             MaxFpsFilter = new FloatDragValueWidget(this);
@@ -44,15 +45,15 @@ class FaceDetectionInterface final : public QWidget{
             MaxFpsFilter->setSingleStep(1);
             MaxFpsFilter->setDecimals(0);
             MaxFpsFilter->setValue(15);
-            main_layout->addWidget(new QLabel("最大帧率 (FPS):", this), 2, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::FaceDetectionInterface", "最大帧率 (FPS):"), this), 2, 0);
             main_layout->addWidget(MaxFpsFilter, 2, 1);
 
-            DrawOverlayCheck = new QCheckBox("绘制检测框 (关闭可降 CPU)", this);
+            DrawOverlayCheck = new QCheckBox(QCoreApplication::translate("Nodes::FaceDetectionInterface", "绘制检测框 (关闭可降 CPU)"), this);
             DrawOverlayCheck->setChecked(true);
             main_layout->addWidget(DrawOverlayCheck, 3, 0, 1, 2);
 
-            main_layout->addWidget(new QLabel("启停 (ENABLE 端口):", this), 4, 0);
-            EnableBtn = new QPushButton("启动检测", this);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::FaceDetectionInterface", "启停 (ENABLE 端口):"), this), 4, 0);
+            EnableBtn = new QPushButton(QCoreApplication::translate("Nodes::FaceDetectionInterface", "启动检测"), this);
             EnableBtn->setCheckable(true);
             main_layout->addWidget(EnableBtn, 4, 1);
             main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);

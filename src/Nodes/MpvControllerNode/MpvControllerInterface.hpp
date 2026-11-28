@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -43,29 +44,29 @@ namespace Nodes
             indexSpinBox->setMinimum(0);
             indexSpinBox->setMaximum(9999);
             indexSpinBox->setValue(0);
-            indexSpinBox->setToolTip(QStringLiteral("媒体库排序号（从 0 起）"));
+            indexSpinBox->setToolTip(QCoreApplication::translate("Nodes::MpvControllerInterface", "媒体库排序号（从 0 起）"));
 
-            playButton->setText(QStringLiteral("播放"));
-            playButton->setToolTip(QStringLiteral("按当前 Index 播放媒体"));
-            stopButton->setText(QStringLiteral("停止"));
-            stopButton->setToolTip(QStringLiteral("停止当前播放（不影响 Index）"));
+            playButton->setText(QCoreApplication::translate("Nodes::MpvControllerInterface", "播放"));
+            playButton->setToolTip(QCoreApplication::translate("Nodes::MpvControllerInterface", "按当前 Index 播放媒体"));
+            stopButton->setText(QCoreApplication::translate("Nodes::MpvControllerInterface", "停止"));
+            stopButton->setToolTip(QCoreApplication::translate("Nodes::MpvControllerInterface", "停止当前播放（不影响 Index）"));
 
-            loopCheckBox->setText(QStringLiteral("循环"));
+            loopCheckBox->setText(QCoreApplication::translate("Nodes::MpvControllerInterface", "循环"));
             loopCheckBox->setChecked(false);
-            loopCheckBox->setToolTip(QStringLiteral("单文件循环（file）；关闭为 off"));
+            loopCheckBox->setToolTip(QCoreApplication::translate("Nodes::MpvControllerInterface", "单文件循环（file）；关闭为 off"));
 
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::MpvControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::MpvControllerInterface", "状态: —"));
 
-            addRow(QStringLiteral("Base URL:"), baseUrlEdit);
-            addRow(QStringLiteral("Index:"), indexSpinBox);
+            addRow(QCoreApplication::translate("Nodes::MpvControllerInterface", "基础 URL："), baseUrlEdit);
+            addRow(QCoreApplication::translate("Nodes::MpvControllerInterface", "序号："), indexSpinBox);
 
             auto *actionRow = new QWidget();
             auto *actionLayout = new QHBoxLayout(actionRow);
@@ -79,7 +80,7 @@ namespace Nodes
             layout->addWidget(connectionLabel);
             layout->addWidget(statusLabel);
 
-            layout->addWidget(new QLabel(QStringLiteral("媒体列表:")));
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MpvControllerInterface", "媒体列表:")));
             mediaListWidget->setMinimumHeight(120);
             layout->addWidget(mediaListWidget, 1);
 
@@ -90,8 +91,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("连接: 已连接")
-                                         : QStringLiteral("连接: 未连接"));
+                                         ? QCoreApplication::translate("Nodes::MpvControllerInterface", "连接: 已连接")
+                                         : QCoreApplication::translate("Nodes::MpvControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

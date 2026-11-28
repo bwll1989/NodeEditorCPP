@@ -38,6 +38,7 @@
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "MpvControllerInterface.hpp"
 #include "PluginDefinition.hpp"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -261,14 +262,14 @@ namespace Nodes
             QNetworkReply *reply = m_manager->get(request);
             if (!reply) {
                 setConnected(false);
-                setStatus(QStringLiteral("查询失败"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "查询失败"));
                 return;
             }
 
             reply->setProperty("op", QStringLiteral("library"));
             m_pendingLibrary = true;
             if (!m_connected) {
-                setStatus(QStringLiteral("正在连接..."));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "正在连接..."));
             }
         }
 
@@ -303,7 +304,7 @@ namespace Nodes
 
             syncParametersFromWidget();
             if (index < 0) {
-                setStatus(QStringLiteral("无效的媒体序号"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "无效的媒体序号"));
                 publishDone(false);
                 return;
             }
@@ -314,7 +315,7 @@ namespace Nodes
 
             const QString mediaId = mediaIdAtIndex(index);
             if (mediaId.isEmpty()) {
-                setStatus(QStringLiteral("序号 %1 无对应媒体").arg(index));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "序号 %1 无对应媒体").arg(index));
                 publishDone(false);
                 return;
             }
@@ -336,7 +337,7 @@ namespace Nodes
             QNetworkReply *reply = m_manager->post(
                 request, QJsonDocument(body).toJson(QJsonDocument::Compact));
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "请求失败"));
                 publishDone(false);
                 return;
             }
@@ -347,7 +348,7 @@ namespace Nodes
             m_pendingPlay = true;
             m_pendingIndex = -1;
             m_pendingUpdateIndex = true;
-            setStatus(QStringLiteral("切换 [%1] \"%2\"...").arg(index).arg(mediaId));
+            setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "切换 [%1] \"%2\"...").arg(index).arg(mediaId));
             AbstractDelegateModel::stateFeedBack("/play", true);
         }
 
@@ -375,14 +376,14 @@ namespace Nodes
 
             QNetworkReply *reply = m_manager->post(request, QByteArrayLiteral("{}"));
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "请求失败"));
                 publishDone(false);
                 return;
             }
 
             reply->setProperty("op", QStringLiteral("stop"));
             m_pendingStop = true;
-            setStatus(QStringLiteral("正在停止..."));
+            setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "正在停止..."));
             AbstractDelegateModel::stateFeedBack("/stop", true);
         }
 
@@ -414,7 +415,7 @@ namespace Nodes
             QNetworkReply *reply = m_manager->post(
                 request, QJsonDocument(body).toJson(QJsonDocument::Compact));
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "请求失败"));
                 return;
             }
 
@@ -422,7 +423,7 @@ namespace Nodes
             reply->setProperty("loop", loop);
             m_pendingSettings = true;
             m_resendLoop = false;
-            setStatus(QStringLiteral("设置循环: %1...")
+            setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "设置循环: %1...")
                           .arg(loop ? QStringLiteral("file") : QStringLiteral("off")));
         }
 
@@ -535,7 +536,7 @@ namespace Nodes
 
         void setStatus(const QString &text)
         {
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::MpvControllerDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)
@@ -649,8 +650,8 @@ namespace Nodes
                 setConnected(false);
                 const QString msg = dataOrError.value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("连接失败")
-                              : QStringLiteral("连接失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::MpvControllerDataModel", "连接失败")
+                              : QCoreApplication::translate("Nodes::MpvControllerDataModel", "连接失败: %1").arg(msg));
                 return;
             }
 
@@ -696,7 +697,7 @@ namespace Nodes
             }
 
             syncPlayingHighlight();
-            setStatus(QStringLiteral("已加载 %1 个媒体").arg(loadedCount));
+            setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "已加载 %1 个媒体").arg(loadedCount));
         }
 
         void handlePlayFinished(QNetworkReply *reply)
@@ -709,8 +710,8 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("播放失败")
-                              : QStringLiteral("播放失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::MpvControllerDataModel", "播放失败")
+                              : QCoreApplication::translate("Nodes::MpvControllerDataModel", "播放失败: %1").arg(msg));
                 publishDone(false);
             } else {
                 m_playingMediaId = reply->property("mediaId").toString();
@@ -722,7 +723,7 @@ namespace Nodes
                 }
                 syncPlayingHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("正在播放 \"%1\"").arg(m_playingMediaId));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "正在播放 \"%1\"").arg(m_playingMediaId));
             }
 
             flushQueuedControl();
@@ -738,14 +739,14 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("停止失败")
-                              : QStringLiteral("停止失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::MpvControllerDataModel", "停止失败")
+                              : QCoreApplication::translate("Nodes::MpvControllerDataModel", "停止失败: %1").arg(msg));
                 publishDone(false);
             } else {
                 m_playingMediaId.clear();
                 syncPlayingHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("已停止"));
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "已停止"));
             }
 
             flushQueuedControl();
@@ -760,15 +761,15 @@ namespace Nodes
             if (!ok) {
                 const QString msg = dataOrError.value(QStringLiteral("message")).toString();
                 setStatus(msg.isEmpty()
-                              ? QStringLiteral("设置循环失败")
-                              : QStringLiteral("设置循环失败: %1").arg(msg));
+                              ? QCoreApplication::translate("Nodes::MpvControllerDataModel", "设置循环失败")
+                              : QCoreApplication::translate("Nodes::MpvControllerDataModel", "设置循环失败: %1").arg(msg));
             } else {
                 const QString loopStr = dataOrError.value(QStringLiteral("loop")).toString();
                 const bool serverLoop = loopStr.isEmpty()
                     ? reply->property("loop").toBool()
                     : (loopStr == QLatin1String("file"));
                 applyLoopToControl(serverLoop, false);
-                setStatus(QStringLiteral("循环: %1")
+                setStatus(QCoreApplication::translate("Nodes::MpvControllerDataModel", "循环: %1")
                               .arg(serverLoop ? QStringLiteral("file") : QStringLiteral("off")));
             }
 

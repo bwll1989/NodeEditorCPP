@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <QCoreApplication>
 
 namespace
 {
@@ -56,13 +57,14 @@ struct NavigationBall
 
 QString navigationName(int index)
 {
+    // 【i18n】导航球悬停标签（UI 可见）
     switch (index) {
-    case 0: return QStringLiteral("右视图");
-    case 1: return QStringLiteral("左视图");
-    case 2: return QStringLiteral("前视图");
-    case 3: return QStringLiteral("后视图");
-    case 4: return QStringLiteral("顶视图");
-    case 5: return QStringLiteral("底视图");
+    case 0: return CurveViewport::tr("右视图");
+    case 1: return CurveViewport::tr("左视图");
+    case 2: return CurveViewport::tr("前视图");
+    case 3: return CurveViewport::tr("后视图");
+    case 4: return CurveViewport::tr("顶视图");
+    case 5: return CurveViewport::tr("底视图");
     default: return {};
     }
 }
@@ -137,7 +139,8 @@ CurveViewport::CurveViewport(QWidget* parent)
     setMinimumHeight(280);
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    setToolTip(QStringLiteral("左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
+    // 【i18n】全局命名空间类且有 Q_OBJECT，直接用 tr()。
+    setToolTip(QCoreApplication::translate("CurveViewport", "左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
 }
 
 CurveViewport::~CurveViewport()
@@ -283,8 +286,8 @@ void CurveViewport::setReadOnly(bool readOnly)
     m_readOnly = readOnly;
     setFocusPolicy(readOnly ? Qt::NoFocus : Qt::StrongFocus);
     setToolTip(readOnly
-        ? QStringLiteral("三维曲线预览（只读）：点击「编辑曲线」打开编辑窗口修改")
-        : QStringLiteral("左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
+        ? QCoreApplication::translate("CurveViewport", "三维曲线预览（只读）：点击「编辑曲线」打开编辑窗口修改")
+        : QCoreApplication::translate("CurveViewport", "左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
     m_draggingPoint = false;
     m_orbiting = false;
     m_panning = false;
@@ -658,7 +661,7 @@ void CurveViewport::paintLegend(QPainter* painter)
         }
         const bool active = (i == m_activeIndex);
         const QColor color = curvePaletteColor(i);
-        const QString name = QStringLiteral("曲线 %1").arg(i + 1);
+        const QString name = QCoreApplication::translate("CurveViewport", "曲线 %1").arg(i + 1);
         const int nameW = fm.horizontalAdvance(name);
         const int rowH = fm.height() + 6;
         const int rowW = 4 + 6 + nameW + 8;
@@ -1331,23 +1334,23 @@ void CurveViewport::addPointOnGround(const QPoint& position)
 void CurveViewport::showContextMenu(const QPoint& position)
 {
     QMenu menu(this);
-    QAction* addAction = menu.addAction(QStringLiteral("在地面添加控制点"));
-    QAction* deleteAction = menu.addAction(QStringLiteral("删除选中控制点"));
+    QAction* addAction = menu.addAction(QCoreApplication::translate("CurveViewport", "在地面添加控制点"));
+    QAction* deleteAction = menu.addAction(QCoreApplication::translate("CurveViewport", "删除选中控制点"));
     deleteAction->setEnabled(m_path && m_path->selectedIndex() >= 0 && m_path->points().size() > 1);
     menu.addSeparator();
-    QMenu* views = menu.addMenu(QStringLiteral("视角"));
+    QMenu* views = menu.addMenu(QCoreApplication::translate("CurveViewport", "视角"));
     const auto addView = [this, views](const QString& text, const QVector3D& direction) {
         connect(views->addAction(text), &QAction::triggered, this, [this, direction] { alignView(direction); });
     };
-    addView(QStringLiteral("顶视图"), QVector3D(0, 0, 1));
-    addView(QStringLiteral("底视图"), QVector3D(0, 0, -1));
-    addView(QStringLiteral("前视图"), QVector3D(0, 1, 0));
-    addView(QStringLiteral("后视图"), QVector3D(0, -1, 0));
-    addView(QStringLiteral("右视图"), QVector3D(1, 0, 0));
-    addView(QStringLiteral("左视图"), QVector3D(-1, 0, 0));
+    addView(QCoreApplication::translate("CurveViewport", "顶视图"), QVector3D(0, 0, 1));
+    addView(QCoreApplication::translate("CurveViewport", "底视图"), QVector3D(0, 0, -1));
+    addView(QCoreApplication::translate("CurveViewport", "前视图"), QVector3D(0, 1, 0));
+    addView(QCoreApplication::translate("CurveViewport", "后视图"), QVector3D(0, -1, 0));
+    addView(QCoreApplication::translate("CurveViewport", "右视图"), QVector3D(1, 0, 0));
+    addView(QCoreApplication::translate("CurveViewport", "左视图"), QVector3D(-1, 0, 0));
     views->addSeparator();
-    QAction* projectionAction = views->addAction(m_orthographic ? QStringLiteral("透视") : QStringLiteral("正交"));
-    QAction* frameAction = menu.addAction(QStringLiteral("适应视图"));
+    QAction* projectionAction = views->addAction(m_orthographic ? QCoreApplication::translate("CurveViewport", "透视") : QCoreApplication::translate("CurveViewport", "正交"));
+    QAction* frameAction = menu.addAction(QCoreApplication::translate("CurveViewport", "适应视图"));
     QAction* chosen = menu.exec(mapToGlobal(position));
     if (chosen == addAction) {
         addPointOnGround(position);

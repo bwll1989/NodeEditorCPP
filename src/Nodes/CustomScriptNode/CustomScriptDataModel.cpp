@@ -6,6 +6,7 @@
 #include <QDebug>
 #include <QGridLayout>
 #include <QMetaObject>
+#include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QThread>
 #include <QTimer>
@@ -155,12 +156,35 @@ QWidget *CustomScriptDataModel::embeddedWidget()
 
 QJsonObject CustomScriptDataModel::save() const
 {
-    return {};
+    // 与 JavaScriptNode 对齐：端口数量存顶层，控件值存 values.widgets。
+    // 脚本代码不随工程保存（随插件包管理，见 Doc.md）。
+    QJsonObject values;
+    values[QStringLiteral("widgets")] = QJsonObject::fromVariantMap(collectWidgetState());
+
+    QJsonObject modelJson = NodeDelegateModel::save();
+    modelJson[QStringLiteral("values")] = values;
+    modelJson[QStringLiteral("InPortCount")] = static_cast<int>(InPortCount);
+    modelJson[QStringLiteral("OutPortCount")] = static_cast<int>(OutPortCount);
+    return modelJson;
 }
 
 void CustomScriptDataModel::load(const QJsonObject &p)
 {
-    Q_UNUSED(p)
+    const QJsonValue valuesNode = p.value(QStringLiteral("values"));
+    if (!valuesNode.isObject()) {
+        return;
+    }
+
+    // 端口数量可被工程覆盖（PortEditable 插件允许改口后保存）
+    InPortCount = static_cast<unsigned int>(p.value(QStringLiteral("InPortCount")).toInt(static_cast<int>(InPortCount)));
+    OutPortCount = static_cast<unsigned int>(p.value(QStringLiteral("OutPortCount")).toInt(static_cast<int>(OutPortCount)));
+
+    // 控件值先缓存，reloadScript 重建控件后由 restoreWidgetState 回填
+    const QJsonObject valuesObject = valuesNode.toObject();
+    m_widgetState = valuesObject.value(QStringLiteral("widgets")).toObject().toVariantMap();
+
+    // 构造函数已用插件脚本跑过一遍；这里重建以套用保存的端口数并回填控件值
+    reloadScript(script, true);
 }
 
 unsigned int CustomScriptDataModel::getInputCount()
@@ -316,6 +340,7 @@ void CustomScriptDataModel::reloadScript(const QString &code, bool runInitInterf
         m_reloading = false;
         if (runInitInterface) {
             initInterface();
+            restoreWidgetState();
         }
         return;
     }
@@ -381,6 +406,9 @@ int CustomScriptDataModel::addToLayout(QObject *widgetObj, int x, int y, int row
     }
 
     const int id = m_widgetCounter++;
+    if (widget_obj->objectName().isEmpty()) {
+        widget_obj->setObjectName(QStringLiteral("w%1").arg(id));
+    }
     m_widgets[id] = widget_obj;
     return id;
 }
@@ -453,6 +481,230 @@ void CustomScriptDataModel::inputEventHandler(int portIndex)
     const QJSValue result = handler.call(QJSValueList() << portIndex);
     if (result.isError()) {
         logJsError("inputEventHandler", result);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 控件值持久化（与 JavaScriptDataModel 对齐，2026-11-28）
+// 键 = objectName（脚本可用 ui({key:...}) 或 setObjectName 指定），
+// 未设置则用 addToLayout 分配的 w0/w1/... 序号。
+// ---------------------------------------------------------------------------
+QVariantMap CustomScriptDataModel::collectWidgetState() const
+{
+    QVariantMap state;
+    for (auto it = m_widgets.constBegin(); it != m_widgets.constEnd(); ++it) {
+        QWidget *w = it.value();
+        if (!w) {
+            continue;
+        }
+        const QString key = w->objectName().isEmpty()
+                                ? QStringLiteral("w%1").arg(it.key())
+                                : w->objectName();
+
+        if (auto *spin = qobject_cast<QSpinBox *>(w)) {
+            state[key] = spin->value();
+        } else if (auto *dspin = qobject_cast<QDoubleSpinBox *>(w)) {
+            state[key] = dspin->value();
+        } else if (auto *slider = qobject_cast<QSlider *>(w)) {
+            state[key] = slider->value();
+        } else if (auto *lineEdit = qobject_cast<QLineEdit *>(w)) {
+            state[key] = lineEdit->text();
+        } else if (auto *button = qobject_cast<QAbstractButton *>(w)) {
+            if (button->isCheckable()) {
+                state[key] = button->isChecked();
+            }
+        } else if (auto *combo = qobject_cast<QComboBox *>(w)) {
+            QVariantMap comboState;
+            comboState[QStringLiteral("index")] = combo->currentIndex();
+            comboState[QStringLiteral("text")] = combo->currentText();
+            QStringList items;
+            for (int i = 0; i < combo->count(); ++i) {
+                items << combo->itemText(i);
+            }
+            comboState[QStringLiteral("items")] = items;
+            state[key] = comboState;
+        }
+    }
+    return state;
+}
+
+void CustomScriptDataModel::restoreWidgetState()
+{
+    if (m_widgetState.isEmpty()) {
+        return;
+    }
+    for (auto it = m_widgets.constBegin(); it != m_widgets.constEnd(); ++it) {
+        QWidget *w = it.value();
+        if (!w) {
+            continue;
+        }
+        const QString key = w->objectName().isEmpty()
+                                ? QStringLiteral("w%1").arg(it.key())
+                                : w->objectName();
+        if (!m_widgetState.contains(key)) {
+            continue;
+        }
+
+        const QVariant value = m_widgetState.value(key);
+        const QSignalBlocker blocker(w);
+        if (auto *spin = qobject_cast<QSpinBox *>(w)) {
+            spin->setValue(value.toInt(nullptr));
+        } else if (auto *dspin = qobject_cast<QDoubleSpinBox *>(w)) {
+            dspin->setValue(value.toDouble(nullptr));
+        } else if (auto *slider = qobject_cast<QSlider *>(w)) {
+            slider->setValue(value.toInt(nullptr));
+        } else if (auto *lineEdit = qobject_cast<QLineEdit *>(w)) {
+            lineEdit->setText(value.toString());
+        } else if (auto *button = qobject_cast<QAbstractButton *>(w)) {
+            if (button->isCheckable()) {
+                button->setChecked(value.toBool());
+            }
+        } else if (auto *combo = qobject_cast<QComboBox *>(w)) {
+            const QVariantMap comboState = value.toMap();
+            const QStringList items = comboState.value(QStringLiteral("items")).toStringList();
+            QStringList currentItems;
+            for (int i = 0; i < combo->count(); ++i) {
+                currentItems << combo->itemText(i);
+            }
+            if (!items.isEmpty() && items != currentItems) {
+                combo->clear();
+                combo->addItems(items);
+            }
+            const int index = comboState.value(QStringLiteral("index"), combo->currentIndex()).toInt(nullptr);
+            if (index >= 0 && index < combo->count()) {
+                combo->setCurrentIndex(index);
+            } else {
+                const QString text = comboState.value(QStringLiteral("text")).toString();
+                if (!text.isEmpty()) {
+                    combo->setCurrentText(text);
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 声明式构建 UI（与 JavaScriptDataModel::ui 对齐）：
+// Node.ui([{type,key,props...,row,col,onChange}, ...]) 自动创建控件、
+// 填属性、入布局并接 onChange；key 作为控件值持久化的稳定键。
+// ---------------------------------------------------------------------------
+void CustomScriptDataModel::ui(const QJSValue &spec)
+{
+    if (m_shuttingDown || m_reloading || !m_jsEngine || !isGuiThread()
+        || !widget || !widget->controlLayout) {
+        return;
+    }
+
+    QJSValue list = spec;
+    if (!list.isArray()) {
+        list = m_jsEngine->newArray(1);
+        list.setProperty(0, spec);
+    }
+
+    const int count = list.property(QStringLiteral("length")).toInt();
+    for (int i = 0; i < count; ++i) {
+        const QJSValue item = list.property(i);
+        if (!item.isObject()) {
+            continue;
+        }
+
+        const QString type = item.property(QStringLiteral("type")).toString();
+        QWidget *created = nullptr;
+        if (type.compare(QStringLiteral("SpinBox"), Qt::CaseInsensitive) == 0) {
+            created = new SpinBox();
+        } else if (type.compare(QStringLiteral("DoubleSpinBox"), Qt::CaseInsensitive) == 0) {
+            created = new DoubleSpinBox();
+        } else if (type.compare(QStringLiteral("Button"), Qt::CaseInsensitive) == 0) {
+            created = new Button();
+        } else if (type.compare(QStringLiteral("Label"), Qt::CaseInsensitive) == 0) {
+            created = new Label();
+        } else if (type.compare(QStringLiteral("LineEdit"), Qt::CaseInsensitive) == 0) {
+            created = new LineEdit();
+        } else if (type.compare(QStringLiteral("CheckBox"), Qt::CaseInsensitive) == 0) {
+            created = new CheckBox();
+        } else if (type.compare(QStringLiteral("ComboBox"), Qt::CaseInsensitive) == 0) {
+            created = new ComboBox();
+        } else if (type.compare(QStringLiteral("HSlider"), Qt::CaseInsensitive) == 0) {
+            created = new HSlider();
+        } else if (type.compare(QStringLiteral("VSlider"), Qt::CaseInsensitive) == 0) {
+            created = new VSlider();
+        }
+        if (!created) {
+            qWarning() << "CustomScript ui(): unknown widget type:" << type;
+            continue;
+        }
+
+        const QString key = item.property(QStringLiteral("key")).toString();
+        if (!key.isEmpty()) {
+            created->setObjectName(key);
+        }
+
+        const QVariantMap props = JSEngineDefines::jsValueToVariantMap(item);
+        for (auto it = props.constBegin(); it != props.constEnd(); ++it) {
+            const QString name = it.key();
+            if (name == QStringLiteral("type") || name == QStringLiteral("key")
+                || name == QStringLiteral("row") || name == QStringLiteral("col")
+                || name == QStringLiteral("rowSpan") || name == QStringLiteral("columnSpan")
+                || name == QStringLiteral("onChange")) {
+                continue;
+            }
+            QString propName = name;
+            if (propName == QStringLiteral("min")) {
+                propName = QStringLiteral("minimum");
+            } else if (propName == QStringLiteral("max")) {
+                propName = QStringLiteral("maximum");
+            }
+            created->setProperty(propName.toUtf8().constData(), it.value());
+        }
+
+        const QJSValue rowProp = item.property(QStringLiteral("row"));
+        const QJSValue colProp = item.property(QStringLiteral("col"));
+        const QJSValue rowSpanProp = item.property(QStringLiteral("rowSpan"));
+        const QJSValue columnSpanProp = item.property(QStringLiteral("columnSpan"));
+        const int row = rowProp.isUndefined() ? -1 : rowProp.toInt();
+        const int col = colProp.isUndefined() ? -1 : colProp.toInt();
+        const int rowSpan = rowSpanProp.isUndefined() ? 1 : rowSpanProp.toInt();
+        const int columnSpan = columnSpanProp.isUndefined() ? 1 : columnSpanProp.toInt();
+        addToLayout(created, row, col, rowSpan, columnSpan);
+
+        const QJSValue onChange = item.property(QStringLiteral("onChange"));
+        if (!onChange.isCallable()) {
+            continue;
+        }
+        auto invokeChange = [this, onChange](const QVariant &value) {
+            if (m_shuttingDown || !m_jsEngine) {
+                return;
+            }
+            QJSValueList args;
+            args << m_jsEngine->toScriptValue(value);
+            const QJSValue result = onChange.call(args);
+            if (result.isError()) {
+                logJsError("ui.onChange", result);
+            }
+        };
+
+        if (auto *spin = qobject_cast<QSpinBox *>(created)) {
+            connect(spin, qOverload<int>(&QSpinBox::valueChanged), created,
+                    [invokeChange](int v) { invokeChange(v); });
+        } else if (auto *dspin = qobject_cast<QDoubleSpinBox *>(created)) {
+            connect(dspin, &QDoubleSpinBox::valueChanged, created,
+                    [invokeChange](double v) { invokeChange(v); });
+        } else if (auto *slider = qobject_cast<QSlider *>(created)) {
+            connect(slider, &QSlider::valueChanged, created,
+                    [invokeChange](int v) { invokeChange(v); });
+        } else if (auto *lineEdit = qobject_cast<QLineEdit *>(created)) {
+            connect(lineEdit, &QLineEdit::textChanged, created,
+                    [invokeChange](const QString &v) { invokeChange(v); });
+        } else if (auto *check = qobject_cast<QCheckBox *>(created)) {
+            connect(check, &QCheckBox::toggled, created,
+                    [invokeChange](bool v) { invokeChange(v); });
+        } else if (auto *combo = qobject_cast<QComboBox *>(created)) {
+            connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), created,
+                    [invokeChange](int v) { invokeChange(v); });
+        } else if (auto *button = qobject_cast<QPushButton *>(created)) {
+            connect(button, &QPushButton::clicked, created,
+                    [invokeChange]() { invokeChange(true); });
+        }
     }
 }
 

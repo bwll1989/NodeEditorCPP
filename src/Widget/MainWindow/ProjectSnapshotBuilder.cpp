@@ -132,31 +132,31 @@ ProjectFileReadResult readProjectFile(const QString& path,
     };
 
     if (path.isEmpty()) {
-        result.errorMessage = QObject::tr("Path is empty");
+        result.errorMessage = QObject::tr("路径为空");
         report(result.errorMessage);
         return result;
     }
 
     QFileInfo fileInfo(path);
     result.absolutePath = fileInfo.absoluteFilePath().replace('\\', '/');
-    report(QObject::tr("Prepare to open: %1").arg(path));
-    report(QObject::tr("Analyze path: %1").arg(result.absolutePath));
+    report(QObject::tr("准备打开: %1").arg(path));
+    report(QObject::tr("解析路径: %1").arg(result.absolutePath));
 
     QFile file(result.absolutePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        result.errorMessage = QObject::tr("Open file failed: %1").arg(file.errorString());
+        result.errorMessage = QObject::tr("打开文件失败: %1").arg(file.errorString());
         report(result.errorMessage);
         return result;
     }
 
     const qint64 fileSize = file.size();
     if (fileSize > 2147483647LL) {
-        result.errorMessage = QObject::tr("File is too large: %1 bytes").arg(fileSize);
+        result.errorMessage = QObject::tr("文件过大: %1 字节").arg(fileSize);
         report(result.errorMessage);
         return result;
     }
 
-    report(QObject::tr("Read file: %1").arg(result.absolutePath));
+    report(QObject::tr("读取文件: %1").arg(result.absolutePath));
 
     QByteArray wholeFile;
     wholeFile.reserve(static_cast<int>(qMax<qint64>(0, fileSize)));
@@ -173,27 +173,27 @@ ProjectFileReadResult readProjectFile(const QString& path,
         if (fileSize > 0) {
             int pct = static_cast<int>((readBytes * 100) / fileSize);
             pct = qMin(pct, 100);
-            report(QObject::tr("Read file... %1% (%2/%3)").arg(pct).arg(readBytes).arg(fileSize));
+            report(QObject::tr("读取文件... %1% (%2/%3)").arg(pct).arg(readBytes).arg(fileSize));
         } else {
-            report(QObject::tr("Read file... %1 bytes").arg(readBytes));
+            report(QObject::tr("读取文件... %1 字节").arg(readBytes));
         }
     }
 
     if (file.error() != QFile::NoError) {
-        result.errorMessage = QObject::tr("Read file failed: %1").arg(file.errorString());
+        result.errorMessage = QObject::tr("读取文件失败: %1").arg(file.errorString());
         report(result.errorMessage);
         return result;
     }
 
-    report(QObject::tr("Parse the flow file..."));
+    report(QObject::tr("解析流程文件..."));
 
     QJsonParseError parseError;
     const QJsonDocument jsonDoc = QJsonDocument::fromJson(wholeFile, &parseError);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
         const QString reason = parseError.error == QJsonParseError::NoError
-                                   ? QObject::tr("Unknown error")
+                                   ? QObject::tr("未知错误")
                                    : parseError.errorString();
-        result.errorMessage = QObject::tr("Parse the flow file failed: %1").arg(reason);
+        result.errorMessage = QObject::tr("解析流程文件失败: %1").arg(reason);
         report(result.errorMessage);
         return result;
     }
@@ -234,9 +234,9 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
                  << ", current =" << currentVersion;
     }
 
-    report(QObject::tr("Load the dataflow model ..."));
+    report(QObject::tr("加载数据流模型..."));
     if (!targets.dataflowViewsManger) {
-        return fail(QObject::tr("DataflowViewsManger is null"));
+        return fail(QObject::tr("DataflowViewsManger 为空"));
     }
 
     QMetaObject::Connection dfConn;
@@ -276,7 +276,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
         QObject::disconnect(dfConn);
     }
 
-    report(QObject::tr("Skip timeline model ..."));
+    report(QObject::tr("跳过时间轴模型..."));
     // 【2026-11-12】旧 TimeLine 段不再解析（旧时间轴已下线；用户拍板
     // 不做旧文件兼容——字段直接忽略）。
 
@@ -296,7 +296,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
                 !ms::MsRuntimeBridge::sceneFromBase64(b64, *targets.msScene,
                                                       err)) {
                 return fail(QObject::tr("加载 mediaTimeline 失败: %1").arg(
-                    err.isEmpty() ? QStringLiteral("场景数据为空") : err));
+                    err.isEmpty() ? QObject::tr("场景数据为空") : err));
             }
             // 【2026-11-13 修复】canvas 钳制：旧工程/异常数据可能 canvas=0，
             // 而画布全链（滚轮缩放/resetView/绘制）以 canvas>0 为有效性闸
@@ -313,7 +313,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
             for (auto& tr : targets.msScene->timeline.tracks)
                 for (auto& c : tr.clips) c.transform.pos_z = 0.0;
             targets.msScene->persp_focal = 0.0;
-            report(QObject::tr("MediaServer timeline loaded"));
+            report(QObject::tr("MediaServer 时间轴已加载"));
         }
     }
 
@@ -328,7 +328,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
             if (!mdValue.isArray()) {
                 return fail(QObject::tr("mediaDisplays 数据格式错误"));
             }
-            report(QObject::tr("Load the display registry ..."));
+            report(QObject::tr("加载显示端注册表..."));
             // 清空现有登记（removeDisplay 同时断 TCP + 清注册表条目）
             const auto existing = targets.msRuntime->displayRows();
             for (const auto& r : existing) {
@@ -357,14 +357,14 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
                     targets.msRuntime->setDisplayEnabled(id, false);
                 }
             }
-            report(QObject::tr("Display registry loaded (%1 entries)")
+            report(QObject::tr("显示端注册表已加载（%1 项）")
                        .arg(displays.size()));
         }
     }
 
-    report(QObject::tr("Load the scheduled tasks model ..."));
+    report(QObject::tr("加载计划任务模型..."));
     if (!targets.scheduledTaskWidget && !targets.scheduledTaskModel) {
-        return fail(QObject::tr("Scheduled task model is null"));
+        return fail(QObject::tr("计划任务模型为空"));
     }
     try {
         const QJsonValue scheduledTasksValue = root.value(QStringLiteral("ScheduledTasks"));
@@ -386,7 +386,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
     if (options.restoreVisualLayout && targets.dockManager) {
         const QString layoutBase64 = root.value(QStringLiteral("VisualLayout")).toString();
         if (!layoutBase64.isEmpty()) {
-            report(QObject::tr("Load the visual layout ..."));
+            report(QObject::tr("加载视觉布局..."));
             const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
             targets.dockManager->restoreState(layoutBytes);
         } else if (options.onMissingVisualLayout) {
@@ -397,7 +397,7 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
     if (options.loadWebLayout && targets.httpServer) {
         const QJsonObject webLayout = root.value(QStringLiteral("WebLayout")).toObject();
         if (!webLayout.isEmpty()) {
-            report(QObject::tr("Load the web layout ..."));
+            report(QObject::tr("加载 Web 布局..."));
             targets.httpServer->load(webLayout);
         }
     }

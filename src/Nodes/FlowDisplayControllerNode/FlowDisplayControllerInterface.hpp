@@ -7,6 +7,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QPushButton>
 #include <QCheckBox>
@@ -43,29 +44,29 @@ namespace Nodes
             indexSpinBox->setMinimum(0);
             indexSpinBox->setMaximum(9999);
             indexSpinBox->setValue(0);
-            indexSpinBox->setToolTip(QStringLiteral("时间轴排序号（从 0 起）"));
+            indexSpinBox->setToolTip(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "时间轴排序号（从 0 起）"));
 
-            playButton->setText(QStringLiteral("播放"));
-            playButton->setToolTip(QStringLiteral("按当前 Index 播放时间轴"));
-            stopButton->setText(QStringLiteral("停止"));
-            stopButton->setToolTip(QStringLiteral("停止播放并回待机（播放头归零）"));
+            playButton->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "播放"));
+            playButton->setToolTip(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "按当前 Index 播放时间轴"));
+            stopButton->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "停止"));
+            stopButton->setToolTip(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "停止播放并回待机（播放头归零）"));
 
-            loopCheckBox->setText(QStringLiteral("循环"));
+            loopCheckBox->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "循环"));
             loopCheckBox->setChecked(false);
-            loopCheckBox->setToolTip(QStringLiteral("勾选 = 当前 Index 指向的时间轴循环播放；取消 = 单次播放（写回时间轴文档 loop 字段）"));
+            loopCheckBox->setToolTip(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "勾选 = 当前 Index 指向的时间轴循环播放；取消 = 单次播放（写回时间轴文档 loop 字段）"));
 
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "状态: —"));
 
-            addRow(QStringLiteral("Base URL:"), baseUrlEdit);
-            addRow(QStringLiteral("Index:"), indexSpinBox);
+            addRow(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "基础 URL："), baseUrlEdit);
+            addRow(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "序号："), indexSpinBox);
 
             auto *actionRow = new QWidget();
             auto *actionLayout = new QHBoxLayout(actionRow);
@@ -79,7 +80,7 @@ namespace Nodes
             layout->addWidget(connectionLabel);
             layout->addWidget(statusLabel);
 
-            layout->addWidget(new QLabel(QStringLiteral("时间轴列表:")));
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "时间轴列表:")));
             timelineListWidget->setMinimumHeight(120);
             layout->addWidget(timelineListWidget, 1);
 
@@ -90,8 +91,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("连接: 已连接")
-                                         : QStringLiteral("连接: 未连接"));
+                                         ? QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "连接: 已连接")
+                                         : QCoreApplication::translate("Nodes::FlowDisplayControllerInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

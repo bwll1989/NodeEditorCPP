@@ -53,21 +53,21 @@ void PluginsManagerWidget::initLayout()
 
     _model = new QStandardItemModel(pluginTable);
     _model->setColumnCount(3);
-    _model->setHeaderData(0, Qt::Horizontal, "Name");
-    _model->setHeaderData(1, Qt::Horizontal, "Version");
-    _model->setHeaderData(2, Qt::Horizontal, "Describe");
+    _model->setHeaderData(0, Qt::Horizontal, tr("名称"));
+    _model->setHeaderData(1, Qt::Horizontal, tr("版本"));
+    _model->setHeaderData(2, Qt::Horizontal, tr("描述"));
     pluginTable->setModel(_model);
     pluginTable->selectRow(0);
 
     // add button
-    QPushButton *addButton = new QPushButton(QIcon(":/icons/icons/add.png"),"Add");
+    QPushButton *addButton = new QPushButton(QIcon(":/icons/icons/add.png"), tr("添加"));
     layout->addWidget(addButton, 1, 0,1,2);
     connect(addButton, &QPushButton::clicked, this, [this]() {
         QString fileName =
                 QFileDialog::getOpenFileName(this->parentWidget(),
-                                             tr("Load Plugin"),
+                                             tr("加载插件"),
                                              QCoreApplication::applicationDirPath(),
-                                             tr("Node Files(*.node);;Data Files(*.data)"));
+                                             tr("节点文件(*.node);;数据文件(*.data)"));
 
         if (!QFileInfo::exists(fileName))
             return;
@@ -94,8 +94,8 @@ void PluginsManagerWidget::initLayout()
         if (!pluginAllowed(plugin)) {
             const QString pluginName = plugin->name();
             pluginsManager->unloadPluginFromName(pluginName);
-            QMessageBox::warning(this, QStringLiteral("未授权"),
-                                 QStringLiteral("插件“%1”需要授权，当前未授权，未加载。").arg(pluginName));
+            QMessageBox::warning(this, tr("未授权"),
+                                 tr("插件“%1”需要授权，当前未授权，未加载。").arg(pluginName));
             return;
         }
         QList<QStandardItem*> row;
@@ -116,7 +116,7 @@ void PluginsManagerWidget::initLayout()
     });
 
     // delete button
-    QPushButton *deleteButton = new QPushButton(QIcon(":/icons/icons/remove.png"),"Delete");
+    QPushButton *deleteButton = new QPushButton(QIcon(":/icons/icons/remove.png"), tr("删除"));
     // layout->addWidget(deleteButton, 1, 1);
     connect(deleteButton, &QPushButton::clicked, this, [this, pluginTable]() {
         QItemSelectionModel *selectionModel = pluginTable->selectionModel();
@@ -187,7 +187,7 @@ void registerBuildInPlugins(QtNodes::PluginsManager* pluginsManager)
 
 void PluginsManagerWidget::loadBuildInPlugin()
 {
-    emit loadPluginStatus("Loading build in plugins");
+    emit loadPluginStatus(tr("正在加载内置插件"));
     registerBuildInPlugins(PluginsManager::instance());
 }
 
@@ -202,9 +202,9 @@ void PluginsManagerWidget::loadAllFromDefaultFolder(const std::function<void(con
     PluginsManager* pluginsManager = PluginsManager::instance();
     auto registry = pluginsManager->registry();
 
-    report(QStringLiteral("Loading build in plugins"));
+    report(tr("正在加载内置插件"));
     registerBuildInPlugins(pluginsManager);
-    report(QObject::tr("Build in plugins loading finished"));
+    report(QObject::tr("内置插件加载完成"));
 
     pluginsManager->loadPlugins(defaultDataFlowPluginsFolder(),
                                 QStringList() << QStringLiteral("*.node")
@@ -217,11 +217,11 @@ void PluginsManagerWidget::loadAllFromDefaultFolder(const std::function<void(con
         }
         if (!pluginAllowed(plugin)) {
             const QString pluginName = plugin->name();
-            report(QStringLiteral("未授权，已跳过 %1").arg(pluginName));
+            report(tr("未授权，已跳过 %1").arg(pluginName));
             pluginsManager->unloadPluginFromName(pluginName);
             continue;
         }
-        report(QObject::tr("loading %1").arg(plugin->name()));
+        report(QObject::tr("正在加载 %1").arg(plugin->name()));
         plugin->registerDataModels(registry);
     }
     // 外部插件注册后再刷一次，保证 Container 子图能创建全部节点类型

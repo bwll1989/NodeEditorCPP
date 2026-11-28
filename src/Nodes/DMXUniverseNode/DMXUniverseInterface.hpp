@@ -10,6 +10,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QGroupBox>
+#include <QCoreApplication>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
@@ -37,7 +38,7 @@ namespace Nodes
         IntDragValueWidget *netSpinBox = new IntDragValueWidget(this);
         
         // 清空按钮
-        QPushButton *enableButton = new QPushButton("Enable", this);
+        QPushButton *enableButton = new QPushButton(QCoreApplication::translate("Nodes::DMXUniverseInterface", "启用"), this);
 
 
 
@@ -68,28 +69,28 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createUniverseConfigGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *configGroup = new QGroupBox("Universe 配置", this);
+            QGroupBox *configGroup = new QGroupBox(QCoreApplication::translate("Nodes::DMXUniverseInterface", "Universe 配置"), this);
             QGridLayout *configLayout = new QGridLayout(configGroup);
             
             // Universe设置
             configLayout->addWidget(new QLabel("Universe:", this), 0, 0);
             universeSpinBox->setRange(0, 15);
             universeSpinBox->setValue(0);
-            universeSpinBox->setToolTip("Universe编号 (0-15)");
+            universeSpinBox->setToolTip(QCoreApplication::translate("Nodes::DMXUniverseInterface", "Universe编号 (0-15)"));
             configLayout->addWidget(universeSpinBox, 0, 1);
             
             // Subnet设置
             configLayout->addWidget(new QLabel("Subnet:", this), 1, 0);
             subnetSpinBox->setRange(0, 15);
             subnetSpinBox->setValue(0);
-            subnetSpinBox->setToolTip("Subnet编号 (0-15)");
+            subnetSpinBox->setToolTip(QCoreApplication::translate("Nodes::DMXUniverseInterface", "Subnet编号 (0-15)"));
             configLayout->addWidget(subnetSpinBox, 1, 1);
             
             // Net设置
             configLayout->addWidget(new QLabel("Net:", this), 2, 0);
             netSpinBox->setRange(0, 127);
             netSpinBox->setValue(0);
-            netSpinBox->setToolTip("Net编号 (0-127)");
+            netSpinBox->setToolTip(QCoreApplication::translate("Nodes::DMXUniverseInterface", "Net编号 (0-127)"));
             configLayout->addWidget(netSpinBox, 2, 1);
             
             parentLayout->addWidget(configGroup);
@@ -101,11 +102,11 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createControlGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *controlGroup = new QGroupBox("数据控制", this);
+            QGroupBox *controlGroup = new QGroupBox(QCoreApplication::translate("Nodes::DMXUniverseInterface", "数据控制"), this);
             QVBoxLayout *controlLayout = new QVBoxLayout(controlGroup);
             
             // 清空按钮
-            enableButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
+            enableButton->setToolTip(QCoreApplication::translate("Nodes::DMXUniverseInterface", "清空当前Universe的所有DMX数据（将所有512个通道设置为0）"));
             enableButton->setCheckable(true);
             enableButton->setChecked(true);
             controlLayout->addWidget(enableButton);

@@ -24,7 +24,7 @@ Curve2DEditor::Curve2DEditor(QWidget* parent)
     setMouseTracking(true);
     setFocusPolicy(Qt::ClickFocus);
     setMinimumHeight(240);
-    setToolTip(QStringLiteral("左键拖动控制点；单击曲线或图例切换编辑目标；双击曲线插入点、双击空白末尾加点；中键或右键平移，滚轮缩放，Delete 删除选中点"));
+    setToolTip(tr("左键拖动控制点；单击曲线或图例切换编辑目标；双击曲线插入点、双击空白末尾加点；中键或右键平移，滚轮缩放，Delete 删除选中点"));
 }
 
 void Curve2DEditor::setPath(CurvePath* path, bool frame)

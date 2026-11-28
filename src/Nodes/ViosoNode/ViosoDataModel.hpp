@@ -12,6 +12,7 @@
 
 #include "ViosoInterface.hpp"
 #include "ViosoWarper.hpp"
+#include <QCoreApplication>
 
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
@@ -502,7 +503,7 @@ private:
             [&](QOpenGLFunctions* f) -> bool {
                 for (unsigned int i = 0; i < outCount; ++i) {
                     if (i >= m_warpers.size() || !m_warpers[i]) {
-                        renderError = QStringLiteral("warper slot %1 missing").arg(i);
+                        renderError = QCoreApplication::translate("Nodes::ViosoDataModel", "渲染槽 %1 缺失").arg(i);
                         return false;
                     }
 
@@ -530,9 +531,8 @@ private:
             if (!renderError.isEmpty()) {
                 QString msg = renderError;
                 if (msg.contains(QStringLiteral("VWB_Init"), Qt::CaseInsensitive)) {
-                    msg += QStringLiteral(
-                        " — if VIOSO log says \"Passkey missing\", enter the 16-byte AES key "
-                        "(32 hex chars) in Passkey, or export an unencrypted .vwf.");
+                    msg += QCoreApplication::translate("Nodes::ViosoDataModel",
+                        " — 若 VIOSO 日志提示 \"Passkey missing\"，请在 Passkey 中输入 16 字节 AES 密钥（32 位 hex），或导出未加密的 .vwf。");
                 }
                 updateNodeState(QtNodes::NodeValidationState::State::Error, msg);
             }

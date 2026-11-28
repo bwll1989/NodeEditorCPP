@@ -10,6 +10,7 @@
 #include "Common/AppConfig/ConfigManager.h"
 #include "ToFilePath.hpp"
 #include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -24,7 +25,7 @@ public:
         auto* layout = new QGridLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
 
-        _statusLabel = new QLabel(QStringLiteral("未录制"), this);
+        _statusLabel = new QLabel(QCoreApplication::translate("Nodes::ToVideoFileInterface", "未录制"), this);
         _statusLabel->setAlignment(Qt::AlignCenter);
 
         _fileEdit = new QLineEdit(this);
@@ -40,7 +41,7 @@ public:
         _fpsWidget->setSuffix(QStringLiteral(" fps"));
         _fpsWidget->setValue(25.0);
 
-        _recordToggle = new QPushButton(QStringLiteral("开始"), this);
+        _recordToggle = new QPushButton(QCoreApplication::translate("Nodes::ToVideoFileInterface", "开始"), this);
         _recordToggle->setCheckable(true);
 
         layout->addWidget(_statusLabel, 0, 0, 1, 2);
@@ -77,10 +78,10 @@ public:
     void setRecording(bool recording)
     {
         if (recording) {
-            _statusLabel->setText(QStringLiteral("录制中"));
+            _statusLabel->setText(QCoreApplication::translate("Nodes::ToVideoFileInterface", "录制中"));
             _statusLabel->setStyleSheet(QStringLiteral("color: #e74c3c; font-weight: bold;"));
         } else {
-            _statusLabel->setText(QStringLiteral("未录制"));
+            _statusLabel->setText(QCoreApplication::translate("Nodes::ToVideoFileInterface", "未录制"));
             _statusLabel->setStyleSheet(QStringLiteral("color: #95a5a6; font-weight: bold;"));
         }
         if (_fpsWidget) {
@@ -108,18 +109,18 @@ private:
         }
         QSignalBlocker blocker(_recordToggle);
         _recordToggle->setChecked(recording);
-        _recordToggle->setText(recording ? QStringLiteral("停止") : QStringLiteral("开始"));
+        _recordToggle->setText(recording ? QCoreApplication::translate("Nodes::ToVideoFileInterface", "停止") : QCoreApplication::translate("Nodes::ToVideoFileInterface", "开始"));
     }
 
     void updateFolderToolTip()
     {
         const QString dir = m_outputDir.isEmpty() ? defaultOutputDir() : m_outputDir;
-        _folderButton->setToolTip(QStringLiteral("输出目录: %1").arg(dir));
+        _folderButton->setToolTip(QCoreApplication::translate("Nodes::ToVideoFileInterface", "输出目录: %1").arg(dir));
     }
 
     void onRecordToggled(bool checked)
     {
-        _recordToggle->setText(checked ? QStringLiteral("停止") : QStringLiteral("开始"));
+        _recordToggle->setText(checked ? QCoreApplication::translate("Nodes::ToVideoFileInterface", "停止") : QCoreApplication::translate("Nodes::ToVideoFileInterface", "开始"));
         emit recordingToggled(checked);
     }
 

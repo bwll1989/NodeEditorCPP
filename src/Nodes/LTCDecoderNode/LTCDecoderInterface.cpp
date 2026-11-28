@@ -3,6 +3,7 @@
 #include <QHBoxLayout>
 #include <QSpacerItem>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 using namespace Nodes;
 TimeCodeInterface::TimeCodeInterface(QWidget *parent)
@@ -34,10 +35,10 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     timeCodeLabel->setText("00:00:00.00");
     layout->addWidget(timeCodeLabel);
 
-    addRow("type:", timeCodeTypeLabel);
+    addRow(QCoreApplication::translate("Nodes::LTCDecoderInterface", "类型："), timeCodeTypeLabel);
     timeCodeTypeLabel->setText("      ");
-    addRow("status:", timeCodeStatusLabel);
-    addRow("offset:", timeCodeOffsetSpinBox);
+    addRow(QCoreApplication::translate("Nodes::LTCDecoderInterface", "状态："), timeCodeStatusLabel);
+    addRow(QCoreApplication::translate("Nodes::LTCDecoderInterface", "偏移："), timeCodeOffsetSpinBox);
     timeCodeOffsetSpinBox->setRange(-100, 100);
     timeCodeOffsetSpinBox->setValue(0);
     layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));

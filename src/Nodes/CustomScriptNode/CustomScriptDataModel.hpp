@@ -64,6 +64,7 @@ public:
     Q_INVOKABLE QJSValue getInputValue(int portIndex);
     Q_INVOKABLE QJSValue getOutputValue(int portIndex);
     Q_INVOKABLE void setOutputValue(int portIndex, const QJSValue &value);
+    Q_INVOKABLE void ui(const QJSValue &spec);
 
 private:
     bool isGuiThread() const;
@@ -75,6 +76,8 @@ private:
     void takeWidgetOwnership();
     void reloadScript(const QString &code, bool runInitInterface);
     void logJsError(const char *context, const QJSValue &result) const;
+    QVariantMap collectWidgetState() const;
+    void restoreWidgetState();
 
     QPointer<CustomScriptInterface> widget;
     QJSEngine *m_jsEngine = nullptr;
@@ -90,6 +93,7 @@ private:
     bool m_handlingInput = false;
 
     QString script;
+    QVariantMap m_widgetState; // 控件值持久化（save 写入 / load 回填，与 JavaScriptNode 对齐）
     mutable QMutex m_dataMutex;
     JSPluginInfo m_pluginInfo;
 };

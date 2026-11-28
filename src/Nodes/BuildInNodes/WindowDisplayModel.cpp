@@ -1,5 +1,6 @@
 #include "WindowDisplayModel.hpp"
 
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QLabel>
 #include <QScreen>
@@ -98,17 +99,17 @@ void WindowDisplayModel::buildUi()
     int row = 0;
 
     _titleEdit = new QLineEdit(_title, _panel);
-    _layout->addWidget(new QLabel(QStringLiteral("标题:"), _panel), row, 0);
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "标题:"), _panel), row, 0);
     _layout->addWidget(_titleEdit, row++, 1, 1, 2);
 
     _screenCombo = new QComboBox(_panel);
-    _layout->addWidget(new QLabel(QStringLiteral("显示器:"), _panel), row, 0);
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "显示器:"), _panel), row, 0);
     _layout->addWidget(_screenCombo, row++, 1, 1, 2);
 
     _openingSizeCombo = new QComboBox(_panel);
-    _openingSizeCombo->addItem(QStringLiteral("填满显示器"), static_cast<int>(OpeningSize::FillDisplay));
-    _openingSizeCombo->addItem(QStringLiteral("自定义尺寸"), static_cast<int>(OpeningSize::Custom));
-    _layout->addWidget(new QLabel(QStringLiteral("尺寸:"), _panel), row, 0);
+    _openingSizeCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "填满显示器"), static_cast<int>(OpeningSize::FillDisplay));
+    _openingSizeCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "自定义尺寸"), static_cast<int>(OpeningSize::Custom));
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "尺寸:"), _panel), row, 0);
     _layout->addWidget(_openingSizeCombo, row++, 1, 1, 2);
 
     _widthSpin = new IntDragValueWidget(_panel);
@@ -119,15 +120,15 @@ void WindowDisplayModel::buildUi()
     _heightSpin->setRange(16, 16384);
     _heightSpin->setValue(_customHeight);
     _heightSpin->setSuffix(QStringLiteral(" px"));
-    _layout->addWidget(new QLabel(QStringLiteral("宽高:"), _panel), row, 0);
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "宽高:"), _panel), row, 0);
     _layout->addWidget(_widthSpin, row, 1);
     _layout->addWidget(_heightSpin, row++, 2);
 
     _positionCombo = new QComboBox(_panel);
-    _positionCombo->addItem(QStringLiteral("居中"), static_cast<int>(WindowPosition::Center));
-    _positionCombo->addItem(QStringLiteral("左上"), static_cast<int>(WindowPosition::TopLeft));
-    _positionCombo->addItem(QStringLiteral("自定义"), static_cast<int>(WindowPosition::Custom));
-    _layout->addWidget(new QLabel(QStringLiteral("位置:"), _panel), row, 0);
+    _positionCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "居中"), static_cast<int>(WindowPosition::Center));
+    _positionCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "左上"), static_cast<int>(WindowPosition::TopLeft));
+    _positionCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "自定义"), static_cast<int>(WindowPosition::Custom));
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "位置:"), _panel), row, 0);
     _layout->addWidget(_positionCombo, row++, 1, 1, 2);
 
     _posXSpin = new IntDragValueWidget(_panel);
@@ -138,32 +139,32 @@ void WindowDisplayModel::buildUi()
     _posYSpin->setRange(-32768, 32768);
     _posYSpin->setValue(_posY);
     _posYSpin->setSuffix(QStringLiteral(" Y"));
-    _layout->addWidget(new QLabel(QStringLiteral("坐标:"), _panel), row, 0);
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "坐标:"), _panel), row, 0);
     _layout->addWidget(_posXSpin, row, 1);
     _layout->addWidget(_posYSpin, row++, 2);
 
     _fitCombo = new QComboBox(_panel);
-    _fitCombo->addItem(QStringLiteral("Contain"), static_cast<int>(FitMode::Contain));
-    _fitCombo->addItem(QStringLiteral("Cover"), static_cast<int>(FitMode::Cover));
-    _fitCombo->addItem(QStringLiteral("Stretch"), static_cast<int>(FitMode::Stretch));
-    _layout->addWidget(new QLabel(QStringLiteral("适配:"), _panel), row, 0);
+    _fitCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "等比包含"), static_cast<int>(FitMode::Contain));
+    _fitCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "等比填充"), static_cast<int>(FitMode::Cover));
+    _fitCombo->addItem(QCoreApplication::translate("Nodes::WindowDisplayModel", "拉伸"), static_cast<int>(FitMode::Stretch));
+    _layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::WindowDisplayModel", "适配:"), _panel), row, 0);
     _layout->addWidget(_fitCombo, row++, 1, 1, 2);
 
-    _bordersCheck = new QCheckBox(QStringLiteral("边框"), _panel);
+    _bordersCheck = new QCheckBox(QCoreApplication::translate("Nodes::WindowDisplayModel", "边框"), _panel);
     _bordersCheck->setChecked(_borders);
-    _alwaysOnTopCheck = new QCheckBox(QStringLiteral("置顶"), _panel);
+    _alwaysOnTopCheck = new QCheckBox(QCoreApplication::translate("Nodes::WindowDisplayModel", "置顶"), _panel);
     _alwaysOnTopCheck->setChecked(_alwaysOnTop);
     _layout->addWidget(_bordersCheck, row, 0);
     _layout->addWidget(_alwaysOnTopCheck, row++, 1);
 
-    _closeOnEscCheck = new QCheckBox(QStringLiteral("Esc 关闭"), _panel);
+    _closeOnEscCheck = new QCheckBox(QCoreApplication::translate("Nodes::WindowDisplayModel", "Esc 关闭"), _panel);
     _closeOnEscCheck->setChecked(_closeOnEscape);
-    _ignoreTaskbarCheck = new QCheckBox(QStringLiteral("忽略任务栏"), _panel);
+    _ignoreTaskbarCheck = new QCheckBox(QCoreApplication::translate("Nodes::WindowDisplayModel", "忽略任务栏"), _panel);
     _ignoreTaskbarCheck->setChecked(_ignoreTaskbar);
     _layout->addWidget(_closeOnEscCheck, row, 0);
     _layout->addWidget(_ignoreTaskbarCheck, row++, 1);
 
-    _openBtn = new QPushButton(QStringLiteral("打开窗口"), _panel);
+    _openBtn = new QPushButton(QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"), _panel);
     _layout->addWidget(_openBtn, row++, 0, 1, 3);
 
     _layout->addItem(new QSpacerItem(20, 8, QSizePolicy::Minimum, QSizePolicy::Expanding),
@@ -280,7 +281,7 @@ void WindowDisplayModel::ensureWindow()
         m_lastDisplayedTimestamp = -1;
         m_lastDisplayedTextureId = 0;
         if (_openBtn) {
-            _openBtn->setText(QStringLiteral("打开窗口"));
+            _openBtn->setText(QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"));
         }
     };
     applyWindowSettings();
@@ -302,7 +303,7 @@ void WindowDisplayModel::destroyWindow()
     m_lastDisplayedTimestamp = -1;
     m_lastDisplayedTextureId = 0;
     if (_openBtn) {
-        _openBtn->setText(QStringLiteral("打开窗口"));
+        _openBtn->setText(QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"));
     }
 }
 
@@ -441,7 +442,7 @@ void WindowDisplayModel::syncUiFromState()
     syncCustomSizeEnabled();
     syncPositionEnabled();
     if (_openBtn) {
-        _openBtn->setText(isWindowOpen() ? QStringLiteral("关闭窗口") : QStringLiteral("打开窗口"));
+        _openBtn->setText(isWindowOpen() ? QCoreApplication::translate("Nodes::WindowDisplayModel", "关闭窗口") : QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"));
     }
 }
 
@@ -486,7 +487,7 @@ void WindowDisplayModel::openWindow()
     // show() 时才创建 native window + initializeGL
     _glWindow->openOnScreen(target, custom, _ignoreTaskbar, offset, anchor);
     if (_openBtn) {
-        _openBtn->setText(QStringLiteral("关闭窗口"));
+        _openBtn->setText(QCoreApplication::translate("Nodes::WindowDisplayModel", "关闭窗口"));
     }
 
     // GL 就绪后再推帧；若本帧尚未 initializeGL，等下一 tick / newFrameWritten
@@ -500,7 +501,7 @@ void WindowDisplayModel::closeWindow()
     _wantOpen = false;
     if (!_glWindow) {
         if (_openBtn) {
-            _openBtn->setText(QStringLiteral("打开窗口"));
+            _openBtn->setText(QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"));
         }
         return;
     }
@@ -513,7 +514,7 @@ void WindowDisplayModel::closeWindow()
     m_lastDisplayedTimestamp = -1;
     m_lastDisplayedTextureId = 0;
     if (_openBtn) {
-        _openBtn->setText(QStringLiteral("打开窗口"));
+        _openBtn->setText(QCoreApplication::translate("Nodes::WindowDisplayModel", "打开窗口"));
     }
 }
 

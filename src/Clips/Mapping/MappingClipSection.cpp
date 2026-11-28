@@ -53,15 +53,15 @@ MappingClipSection::MappingClipSection(const ClipSectionContext& ctx,
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(4);
 
-    auto* box = new QGroupBox(QStringLiteral("映射消息"), this);
+    auto* box = new QGroupBox(tr("映射消息"), this);
     auto* lay = new QVBoxLayout(box);
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
 
     // ---- 求值语义说明 --------------------------------------------------------
     hint_ = new QLabel(
-        QStringLiteral("播放期间逐帧求值表达式并重发：$percent = 区间内进度(0~1)，"
-                       "$frame = 区间内相对帧号；值可写列表 [a,b,c] 或算式"), box);
+        tr("播放期间逐帧求值表达式并重发：$percent = 区间内进度(0~1)，"
+           "$frame = 区间内相对帧号；值可写列表 [a,b,c] 或算式"), box);
     hint_->setObjectName("mappingHint");
     hint_->setStyleSheet(QStringLiteral("color:#888;"));
     hint_->setWordWrap(true);

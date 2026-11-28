@@ -13,6 +13,7 @@
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -53,7 +54,7 @@ namespace Nodes
             m_deleteBtn->setFixedSize(inner, inner);
             m_deleteBtn->setFlat(true);
             m_deleteBtn->setFocusPolicy(Qt::NoFocus);
-            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            m_deleteBtn->setToolTip(QCoreApplication::translate("Nodes::InjectPresetRow", "删除"));
             connect(m_deleteBtn, &QPushButton::clicked, this, &InjectPresetRow::deleteRequested);
 
             lay->addWidget(m_edit, 1);
@@ -92,7 +93,7 @@ namespace Nodes
             : QWidget(parent)
             , m_column(new PortAlignedColumn(this))
             , m_rowHeight(PortAlignedColumn::rowPitch())
-            , m_placeholder(QStringLiteral("触发后输出的值"))
+            , m_placeholder(QCoreApplication::translate("Nodes::InjectInterface", "触发后输出的值"))
         {
             setObjectName(QStringLiteral("InjectInterface"));
             setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -105,7 +106,7 @@ namespace Nodes
             m_addButton->setFixedSize(inner, inner);
             m_addButton->setFlat(true);
             m_addButton->setFocusPolicy(Qt::NoFocus);
-            m_addButton->setToolTip(QStringLiteral("添加"));
+            m_addButton->setToolTip(QCoreApplication::translate("Nodes::InjectInterface", "添加"));
             connect(m_addButton, &QPushButton::clicked, this, &InjectInterface::onAddClicked);
 
             auto *right = new QVBoxLayout();

@@ -12,14 +12,14 @@ AudioDelayInterface::AudioDelayInterface(QWidget *parent)
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(4, 4, 4, 4);
 
-    auto *group = new QGroupBox(QStringLiteral("Audio Delay"), this);
+    auto *group = new QGroupBox(tr("音频延迟"), this);
     auto *layout = new QGridLayout(group);
 
     channelsSpin = new IntDragValueWidget();
     channelsSpin->setRange(kMinChannels, kMaxChannels);
     channelsSpin->setSingleStep(1);
     channelsSpin->setValue(kDefaultChannels);
-    layout->addWidget(new QLabel(QStringLiteral("Channels")), 0, 0);
+    layout->addWidget(new QLabel(tr("声道")), 0, 0);
     layout->addWidget(channelsSpin, 0, 1);
 
     delayFramesSpin = new IntDragValueWidget();
@@ -30,7 +30,7 @@ AudioDelayInterface::AudioDelayInterface(QWidget *parent)
     delayFramesSpin->setToolTip(QStringLiteral(
         "将输出时间戳整体后移 N 帧（系统时钟约 50 Hz，1 帧 ≈ 20 ms）。\n"
         "用于补偿不同路径上的固定延时差（如矩阵混音侧多加了输出延时）。"));
-    layout->addWidget(new QLabel(QStringLiteral("Delay")), 1, 0);
+    layout->addWidget(new QLabel(tr("延迟")), 1, 0);
     layout->addWidget(delayFramesSpin, 1, 1);
 
     auto *hint = new QLabel(QStringLiteral(

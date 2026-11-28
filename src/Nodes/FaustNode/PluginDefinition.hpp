@@ -20,7 +20,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "Faust DSP：加载用户 .dsp 文件做音频处理"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "Faust DSP：加载用户 .dsp 文件做音频处理")
 #define PLUGIN_TAG "Audio"
 
 class DLL_EXPORT Plugin
@@ -37,7 +37,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; }
     QString version() const override { return PLUGIN_VERSION; }
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
     QString tag() const override { return PLUGIN_TAG; }
     bool NeedAuthorized() const override { return false; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry>& reg) override;

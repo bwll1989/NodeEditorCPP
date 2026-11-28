@@ -14,6 +14,7 @@
 #include <QGroupBox>
 #include <QListWidget>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 namespace Nodes
 {
     class PosiStageNetClientInterface : public QWidget
@@ -27,31 +28,31 @@ namespace Nodes
             mainGridLayout->setSpacing(6);
 
             // 组播地址行 占据网格第一行的两列
-            auto *addressLabel = new QLabel(QStringLiteral("组播地址:"));
+            auto *addressLabel = new QLabel(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "组播地址:"));
             mainGridLayout->addWidget(addressLabel, 0, 0);
             multicastAddressEdit->setPlaceholderText(QStringLiteral("236.10.10.10"));
             multicastAddressEdit->setText(QStringLiteral("236.10.10.10"));
-            multicastAddressEdit->setToolTip(QStringLiteral("PSN 默认组播地址 236.10.10.10"));
+            multicastAddressEdit->setToolTip(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "PSN 默认组播地址 236.10.10.10"));
             mainGridLayout->addWidget(multicastAddressEdit, 0, 1);
 
             // 端口行 占据网格第二行的两列
-            auto *portLabel = new QLabel(QStringLiteral("端口:"));
+            auto *portLabel = new QLabel(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "端口:"));
             mainGridLayout->addWidget(portLabel, 1, 0);
             portSpinBox->setRange(1, 65535);
             portSpinBox->setValue(56565);
-            portSpinBox->setToolTip(QStringLiteral("PSN 默认端口 56565"));
+            portSpinBox->setToolTip(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "PSN 默认端口 56565"));
             mainGridLayout->addWidget(portSpinBox, 1, 1);
             // 为端口行添加空白拉伸，保持原有布局效果
             mainGridLayout->setColumnStretch(1, 1);
 
             // 启用接收复选框 跨两列放置在第三行
-            enableCheckBox->setText(QStringLiteral("启用接收"));
+            enableCheckBox->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "启用接收"));
             enableCheckBox->setChecked(false);
-            enableCheckBox->setToolTip(QStringLiteral("开启后加入组播并接收PSN数据"));
+            enableCheckBox->setToolTip(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "开启后加入组播并接收PSN数据"));
             mainGridLayout->addWidget(enableCheckBox, 2, 0, 1, 2);
 
             // 状态组框 跨两列放置在第四行，保持内部原有垂直布局不变
-            auto *statusBox = new QGroupBox(QStringLiteral("状态"));
+            auto *statusBox = new QGroupBox(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "状态"));
             auto *statusLayout = new QVBoxLayout(statusBox);
             statusLayout->setContentsMargins(8, 12, 8, 8);
             statusLayout->setSpacing(4);
@@ -59,15 +60,15 @@ namespace Nodes
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
             statusLayout->addWidget(connectionLabel);
 
-            systemNameLabel->setText(QStringLiteral("系统名: —"));
+            systemNameLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "系统名: —"));
             systemNameLabel->setStyleSheet(QStringLiteral("color: #888;"));
             statusLayout->addWidget(systemNameLabel);
 
-            frameInfoLabel->setText(QStringLiteral("帧: — | 追踪器: 0"));
+            frameInfoLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "帧: — | 追踪器: 0"));
             frameInfoLabel->setStyleSheet(QStringLiteral("color: #888;"));
             statusLayout->addWidget(frameInfoLabel);
 
@@ -99,8 +100,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("已连接 (接收中)")
-                                         : QStringLiteral("未连接"));
+                                         ? QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "已连接 (接收中)")
+                                         : QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));
@@ -113,9 +114,9 @@ namespace Nodes
         void updateSystemName(const QString &name)
         {
             if (name.isEmpty()) {
-                systemNameLabel->setText(QStringLiteral("系统名: —"));
+                systemNameLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "系统名: —"));
             } else {
-                systemNameLabel->setText(QStringLiteral("系统名: %1").arg(name));
+                systemNameLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "系统名: %1").arg(name));
             }
         }
 
@@ -127,9 +128,9 @@ namespace Nodes
         void updateFrameInfo(int frameId, int trackerCount)
         {
             if (frameId < 0) {
-                frameInfoLabel->setText(QStringLiteral("帧: — | 追踪器: 0"));
+                frameInfoLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "帧: — | 追踪器: 0"));
             } else {
-                frameInfoLabel->setText(QStringLiteral("帧: %1 | 追踪器: %2")
+                frameInfoLabel->setText(QCoreApplication::translate("Nodes::PosiStageNetClientInterface", "帧: %1 | 追踪器: %2")
                                             .arg(frameId)
                                             .arg(trackerCount));
             }

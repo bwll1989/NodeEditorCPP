@@ -15,7 +15,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "时间线音频总线：timeline 混音经命名环形队列进入节点图（0 号口 SYNC 发布播放头，其余口为音频 bus）"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "时间线音频总线：timeline 混音经命名环形队列进入节点图（0 号口 SYNC 发布播放头，其余口为音频 bus）")
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
     : public QObject
@@ -31,7 +31,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
-    QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString describe() const override {return tr(PLUGIN_DESCRIBE);};
     QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 

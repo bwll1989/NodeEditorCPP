@@ -3,6 +3,7 @@
 //
 #include "UniversePlaybackDataModel.hpp"
 #include <QFile>
+#include <QCoreApplication>
 using namespace Nodes;
 
 UniversePlaybackDataModel::UniversePlaybackDataModel()
@@ -211,7 +212,7 @@ void UniversePlaybackDataModel::setFileName(const QString& fileName) {
             updateNodeState(QtNodes::NodeValidationState::State::Valid);
         } else {
              updateNodeState(QtNodes::NodeValidationState::State::Error, "cannot open file");
-             widget->showError("无法打开视频文件");
+             widget->showError(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法打开视频文件"));
         }
     }
     
@@ -379,7 +380,7 @@ void UniversePlaybackDataModel::load(const QJsonObject &p)
                 updateNodeState(QtNodes::NodeValidationState::State::Valid);
             } else {
                 updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("cannot open file"));
-                widget->showError(QStringLiteral("无法打开视频文件"));
+                widget->showError(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法打开视频文件"));
             }
         }
         emit fileNameChanged(m_fileName);
@@ -557,12 +558,12 @@ bool UniversePlaybackDataModel::openVideo(const QString& filename)
     initializeFFmpeg();
 
     if (avformat_open_input(&m_formatContext, filename.toUtf8().constData(), nullptr, nullptr) < 0) {
-        emit errorOccurred(QString("无法打开视频文件: %1").arg(filename));
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法打开视频文件: %1").arg(filename));
         return false;
     }
 
     if (avformat_find_stream_info(m_formatContext, nullptr) < 0) {
-        emit errorOccurred("无法获取流信息");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法获取流信息"));
         return false;
     }
 
@@ -575,7 +576,7 @@ bool UniversePlaybackDataModel::openVideo(const QString& filename)
     }
 
     if (m_videoStreamIndex == -1) {
-        emit errorOccurred("未找到视频流");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "未找到视频流"));
         return false;
     }
 
@@ -585,7 +586,7 @@ bool UniversePlaybackDataModel::openVideo(const QString& filename)
     m_videoHeight = codecpar->height;
 
     if (m_videoWidth != 512 || m_videoHeight < 1) {
-        emit errorOccurred(QString("尺寸必须为512x1，当前尺寸: %1x%2").arg(m_videoWidth).arg(m_videoHeight));
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "尺寸必须为512x1，当前尺寸: %1x%2").arg(m_videoWidth).arg(m_videoHeight));
         return false;
     }
 
@@ -593,28 +594,28 @@ bool UniversePlaybackDataModel::openVideo(const QString& filename)
 
     m_codec = avcodec_find_decoder(codecpar->codec_id);
     if (!m_codec) {
-        emit errorOccurred("未找到合适的解码器");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "未找到合适的解码器"));
         return false;
     }
 
     if (m_codec->id != AV_CODEC_ID_FFV1) {
-        emit errorOccurred("视频必须使用FFV1编码");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "视频必须使用FFV1编码"));
         return false;
     }
 
     m_codecContext = avcodec_alloc_context3(m_codec);
     if (!m_codecContext) {
-        emit errorOccurred("无法分配编解码器上下文");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法分配编解码器上下文"));
         return false;
     }
 
     if (avcodec_parameters_to_context(m_codecContext, codecpar) < 0) {
-        emit errorOccurred("无法复制编解码器参数");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法复制编解码器参数"));
         return false;
     }
 
     if (avcodec_open2(m_codecContext, m_codec, nullptr) < 0) {
-        emit errorOccurred("无法打开编解码器");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "无法打开编解码器"));
         return false;
     }
 
@@ -622,7 +623,7 @@ bool UniversePlaybackDataModel::openVideo(const QString& filename)
     m_packet = av_packet_alloc();
 
     if (!m_frame || !m_packet) {
-        emit errorOccurred("内存分配失败");
+        emit errorOccurred(QCoreApplication::translate("Nodes::UniversePlaybackDataModel", "内存分配失败"));
         return false;
     }
 

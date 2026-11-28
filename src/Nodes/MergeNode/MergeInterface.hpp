@@ -13,6 +13,7 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -40,7 +41,7 @@ namespace Nodes
             lay->setSpacing(2);
 
             m_nameEdit = new QLineEdit(this);
-            m_nameEdit->setPlaceholderText(QStringLiteral("Name"));
+            m_nameEdit->setPlaceholderText(QCoreApplication::translate("Nodes::MergeInterface", "名称"));
             m_nameEdit->setFixedHeight(inner);
             m_nameEdit->setFrame(false);
             m_nameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -48,7 +49,7 @@ namespace Nodes
             connect(m_nameEdit, &QLineEdit::textEdited, this, &MergeRuleRow::valueChanged);
 
             m_renameEdit = new QLineEdit(this);
-            m_renameEdit->setPlaceholderText(QStringLiteral("Rename"));
+            m_renameEdit->setPlaceholderText(QCoreApplication::translate("Nodes::MergeInterface", "重命名"));
             m_renameEdit->setFixedHeight(inner);
             m_renameEdit->setFrame(false);
             m_renameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -61,7 +62,7 @@ namespace Nodes
             m_deleteBtn->setFixedSize(inner, inner);
             m_deleteBtn->setFlat(true);
             m_deleteBtn->setFocusPolicy(Qt::NoFocus);
-            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            m_deleteBtn->setToolTip(QCoreApplication::translate("Nodes::MergeInterface", "删除"));
             connect(m_deleteBtn, &QPushButton::clicked, this, &MergeRuleRow::deleteRequested);
 
             lay->addWidget(m_nameEdit, 1);
@@ -122,7 +123,7 @@ namespace Nodes
             m_addButton->setFixedSize(inner, inner);
             m_addButton->setFlat(true);
             m_addButton->setFocusPolicy(Qt::NoFocus);
-            m_addButton->setToolTip(QStringLiteral("添加"));
+            m_addButton->setToolTip(QCoreApplication::translate("Nodes::MergeInterface", "添加"));
             connect(m_addButton, &QPushButton::clicked, this, &MergeInterface::onAddClicked);
 
             auto *right = new QVBoxLayout();

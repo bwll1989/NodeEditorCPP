@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 #include <QSpacerItem>
 #include <QSignalBlocker>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -17,16 +18,16 @@ namespace Nodes
 
     public:
         explicit RTSPInInterface(QWidget* parent = nullptr)
-            : QGroupBox(QStringLiteral("RTSP 拉流"), parent)
+            : QGroupBox(QCoreApplication::translate("Nodes::RTSPInInterface", "RTSP 拉流"), parent)
         {
             m_urlEdit = new QLineEdit(this);
             m_urlEdit->setPlaceholderText(QStringLiteral("rtsp://user:pass@host:554/stream"));
             m_urlEdit->setText(QStringLiteral("rtsp://127.0.0.1:8554/live"));
 
-            m_startStopButton = new QPushButton(QStringLiteral("开始"), this);
+            m_startStopButton = new QPushButton(QCoreApplication::translate("Nodes::RTSPInInterface", "开始"), this);
             m_startStopButton->setCheckable(true);
 
-            m_connectionStatusLabel = new QLabel(QStringLiteral("状态: 未连接"), this);
+            m_connectionStatusLabel = new QLabel(QCoreApplication::translate("Nodes::RTSPInInterface", "状态: 未连接"), this);
             m_connectionStatusLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             m_mainLayout = new QVBoxLayout(this);
@@ -63,13 +64,13 @@ namespace Nodes
             QSignalBlocker blocker(m_startStopButton);
             m_startStopButton->setChecked(connected);
             if (connected) {
-                m_connectionStatusLabel->setText(QStringLiteral("状态: 已连接"));
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::RTSPInInterface", "状态: 已连接"));
                 m_connectionStatusLabel->setStyleSheet(QStringLiteral("color: green; font-weight: bold;"));
-                m_startStopButton->setText(QStringLiteral("停止"));
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::RTSPInInterface", "停止"));
             } else {
-                m_connectionStatusLabel->setText(QStringLiteral("状态: 未连接"));
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::RTSPInInterface", "状态: 未连接"));
                 m_connectionStatusLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
-                m_startStopButton->setText(QStringLiteral("开始"));
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::RTSPInInterface", "开始"));
             }
         }
 

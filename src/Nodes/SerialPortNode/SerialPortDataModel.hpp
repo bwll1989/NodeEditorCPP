@@ -11,6 +11,7 @@
 #include "Common/Devices/SerialPort/SerialPort.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -86,7 +87,8 @@ namespace Nodes
                 }
 
                 QSignalBlocker blocker(widget->statusButton);
-                widget->statusButton->setText(ready ? "Connected" : "Disconnect");
+                widget->statusButton->setText(ready ? QCoreApplication::translate("Nodes::SerialPortDataModel", "已连接")
+                                                    : QCoreApplication::translate("Nodes::SerialPortDataModel", "已断开"));
                 widget->statusButton->setChecked(ready);
                 widget->statusButton->setStyleSheet(ready ? "color: green; font-weight: bold;"
                                                           : "color: red; font-weight: bold;");

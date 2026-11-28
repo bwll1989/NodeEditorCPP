@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QComboBox>
+#include <QCoreApplication>
 namespace Nodes
 {
     class OscOutInterface : public QWidget {
@@ -34,9 +35,9 @@ namespace Nodes
         main_layout->addWidget(addressLineEdit, 2, 1);
         main_layout->addWidget(typelabel, 3, 0);
         main_layout->addWidget(typeComboBox, 3, 1);
-        typeComboBox->addItem("Int");
-        typeComboBox->addItem("Float");
-        typeComboBox->addItem("String");
+        typeComboBox->addItem(QCoreApplication::translate("Nodes::OscOutInterface", "整数"));
+        typeComboBox->addItem(QCoreApplication::translate("Nodes::OscOutInterface", "浮点"));
+        typeComboBox->addItem(QCoreApplication::translate("Nodes::OscOutInterface", "字符串"));
         main_layout->addWidget(valuelabel, 4, 0);
         main_layout->addWidget(valueLineEdit, 4, 1);
         main_layout->addWidget(sendButton, 5, 0, 1, 2);
@@ -69,14 +70,14 @@ namespace Nodes
         QLineEdit *addressLineEdit=new QLineEdit("/test");
         QComboBox *typeComboBox=new QComboBox();
         QLineEdit *valueLineEdit=new QLineEdit();
-        QPushButton *sendButton = new QPushButton("Send");
+        QPushButton *sendButton = new QPushButton(QCoreApplication::translate("Nodes::OscOutInterface", "发送"));
     private:
         QGridLayout *main_layout;     // 主布局
-        QLabel *hostlabel=new QLabel("Host: ");                // 标签
-        QLabel *portlabel=new QLabel("Port: ");
-        QLabel *addresslabel=new QLabel("Address: ");
-        QLabel *typelabel=new QLabel("Type: ");
-        QLabel *valuelabel=new QLabel("Value: ");
+        QLabel *hostlabel=new QLabel(QCoreApplication::translate("Nodes::OscOutInterface", "主机："));                // 标签
+        QLabel *portlabel=new QLabel(QCoreApplication::translate("Nodes::OscOutInterface", "端口："));
+        QLabel *addresslabel=new QLabel(QCoreApplication::translate("Nodes::OscOutInterface", "地址："));
+        QLabel *typelabel=new QLabel(QCoreApplication::translate("Nodes::OscOutInterface", "类型："));
+        QLabel *valuelabel=new QLabel(QCoreApplication::translate("Nodes::OscOutInterface", "值："));
 
     };
 }

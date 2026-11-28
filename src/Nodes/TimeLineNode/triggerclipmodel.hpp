@@ -1,6 +1,7 @@
 #ifndef TRIGGERCLIPMODEL_H
 #define TRIGGERCLIPMODEL_H
 #include <QPushButton>
+#include <QCoreApplication>
 #include "TimelineEngine.h"
 // 本头内联代码解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
 // 库头自前置声明化后不再传递提供，必须显式 include。
@@ -73,12 +74,13 @@ namespace Clips
             mainLayout->setContentsMargins(5, 5, 5, 5);
             mainLayout->setSpacing(4);
             // OSC消息设置
-            auto* playGroup = new QGroupBox("触发设置", m_editor);
+            // 【i18n】Clips 命名空间类：显式 translate（context=Clips::TriggerClipModel）
+            auto* playGroup = new QGroupBox(QCoreApplication::translate("Clips::TriggerClipModel", "触发设置"), m_editor);
             auto* playLayout = new QVBoxLayout(playGroup);
             playLayout->setContentsMargins(0, 0, 0, 0);
             playLayout->addWidget(m_listWidget);
             // 测试按钮
-            sendButton = new QPushButton("测试发送", m_editor);
+            sendButton = new QPushButton(QCoreApplication::translate("Clips::TriggerClipModel", "测试发送"), m_editor);
             connect(sendButton, &QPushButton::clicked, [=]() {
                 trigger();
             });

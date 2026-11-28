@@ -16,6 +16,7 @@
 #include <QComboBox>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 /**
  * @brief 通用 Modbus 线圈控制器界面
@@ -39,28 +40,28 @@ public:
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(6);
 
-        auto connectionGroup = new QGroupBox("连接设置", this);
+        auto connectionGroup = new QGroupBox(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "连接设置"), this);
         auto connectionLayout = new QGridLayout(connectionGroup);
         connectionLayout->setContentsMargins(6, 8, 6, 6);
         connectionLayout->setSpacing(4);
 
-        connectionLayout->addWidget(new QLabel("IP地址:", this), 0, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "IP地址:"), this), 0, 0);
         _hostEdit = new QLineEdit("127.0.0.1", this);
         connectionLayout->addWidget(_hostEdit, 0, 1);
 
-        connectionLayout->addWidget(new QLabel("端口:", this), 1, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "端口:"), this), 1, 0);
         _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(502);
         connectionLayout->addWidget(_portEdit, 1, 1);
 
-        connectionLayout->addWidget(new QLabel("Server ID:", this), 2, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "服务器 ID："), this), 2, 0);
         _serverId = new IntDragValueWidget(this);
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1);
 
-        _statusLabel = new QPushButton("状态: 未连接", this);
+        _statusLabel = new QPushButton(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "状态: 未连接"), this);
         _statusLabel->setEnabled(false);
         _statusLabel->setCheckable(true);
         _statusLabel->setFlat(true);
@@ -69,25 +70,25 @@ public:
 
         mainLayout->addWidget(connectionGroup);
 
-        auto coilConfigGroup = new QGroupBox("线圈配置", this);
+        auto coilConfigGroup = new QGroupBox(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "线圈配置"), this);
         auto coilConfigLayout = new QGridLayout(coilConfigGroup);
         coilConfigLayout->setContentsMargins(6, 8, 6, 6);
         coilConfigLayout->setSpacing(4);
 
-        coilConfigLayout->addWidget(new QLabel("数量:", this), 0, 0);
+        coilConfigLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "数量:"), this), 0, 0);
         _coilCountEdit = new IntDragValueWidget(this);
         _coilCountEdit->setRange(kMinCoilCount, kMaxCoilCount);
         _coilCountEdit->setValue(8);
         coilConfigLayout->addWidget(_coilCountEdit, 0, 1);
 
-        coilConfigLayout->addWidget(new QLabel("地址基址:", this), 1, 0);
+        coilConfigLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "地址基址:"), this), 1, 0);
         _addressBaseCombo = new QComboBox(this);
-        _addressBaseCombo->addItem("0 基 (PDU)", 0);
-        _addressBaseCombo->addItem("1 基", 1);
+        _addressBaseCombo->addItem(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "0 基 (PDU)"), 0);
+        _addressBaseCombo->addItem(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "1 基"), 1);
         _addressBaseCombo->setCurrentIndex(0);
         coilConfigLayout->addWidget(_addressBaseCombo, 1, 1);
 
-        _startAddressLabel = new QLabel("起始地址(PDU):", this);
+        _startAddressLabel = new QLabel(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "起始地址(PDU):"), this);
         coilConfigLayout->addWidget(_startAddressLabel, 2, 0);
         _coilStartEdit = new IntDragValueWidget(this);
         _coilStartEdit->setRange(0, 65535);
@@ -96,7 +97,7 @@ public:
 
         mainLayout->addWidget(coilConfigGroup);
 
-        _coilGroup = new QGroupBox("线圈 (C0~)", this);
+        _coilGroup = new QGroupBox(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "线圈 (C0~)"), this);
         _coilScroll = new QScrollArea(this);
         _coilScroll->setWidgetResizable(true);
         _coilScroll->setFrameShape(QFrame::NoFrame);
@@ -150,8 +151,8 @@ public:
     {
         if (_startAddressLabel) {
             _startAddressLabel->setText(addressBase == 0
-                                            ? QStringLiteral("起始地址(PDU):")
-                                            : QStringLiteral("起始地址(1基):"));
+                                            ? QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "起始地址(PDU):")
+                                            : QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "起始地址(1基):"));
         }
         if (_coilStartEdit) {
             _coilStartEdit->setRange(addressBase, 65535);
@@ -186,7 +187,7 @@ public:
 
         const int displayStart = pduStart + addressBase;
         _coilGroup->setTitle(
-            QString("线圈 (C0~C%1, 地址 %2~%3)")
+            QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "线圈 (C0~C%1, 地址 %2~%3)")
                 .arg(count - 1)
                 .arg(displayStart, 4, 10, QChar('0'))
                 .arg(displayStart + count - 1, 4, 10, QChar('0')));
@@ -211,11 +212,11 @@ public:
         }
         if (connected) {
             _statusLabel->setChecked(true);
-            _statusLabel->setText("状态: 已连接");
+            _statusLabel->setText(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "状态: 已连接"));
             _statusLabel->setStyleSheet("color: green; font-weight: bold;");
         } else {
             _statusLabel->setChecked(false);
-            _statusLabel->setText("状态: 未连接");
+            _statusLabel->setText(QCoreApplication::translate("Nodes::ModBusMasterCoilControllerInterface", "状态: 未连接"));
             _statusLabel->setStyleSheet("color: red; font-weight: bold;");
         }
     }

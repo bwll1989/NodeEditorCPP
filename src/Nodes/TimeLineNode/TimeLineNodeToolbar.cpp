@@ -51,12 +51,12 @@ void TimeLineNodeToolBar::createActions()
     // 创建播放动作
     m_playAction = new QAction(this);
     m_playAction->setIcon(QIcon(":/tlnode/icons/play.png"));
-    m_playAction->setToolTip(tr("Play"));
+    m_playAction->setToolTip(tr("播放"));
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     connect(m_playAction, &QAction::triggered, [this]() {
         m_isPlaying = !m_isPlaying;
         m_playAction->setIcon(QIcon(m_isPlaying ? ":/tlnode/icons/pause.png" : ":/tlnode/icons/play.png"));
-        m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+        m_playAction->setToolTip(m_isPlaying ? tr("暂停") : tr("播放"));
         if (m_isPlaying) {
             emit playClicked();
         } else {
@@ -67,12 +67,12 @@ void TimeLineNodeToolBar::createActions()
     // 创建停止动作
     m_stopAction = new QAction(this);
     m_stopAction->setIcon(QIcon(":/tlnode/icons/stop.png"));
-    m_stopAction->setToolTip(tr("Stop"));
+    m_stopAction->setToolTip(tr("停止"));
     connect(m_stopAction, &QAction::triggered, [this]() {
         if (m_isPlaying) {
             m_isPlaying = false;
             m_playAction->setIcon(QIcon(":/tlnode/icons/play.png"));
-            m_playAction->setToolTip(tr("Play"));
+            m_playAction->setToolTip(tr("播放"));
            
         }
         emit stopClicked();
@@ -81,7 +81,7 @@ void TimeLineNodeToolBar::createActions()
     // 创建循环动作
     m_loopAction = new QAction(this);
     m_loopAction->setIcon(QIcon(":/tlnode/icons/repeat.png"));
-    m_loopAction->setToolTip(tr("Loop"));
+    m_loopAction->setToolTip(tr("循环"));
     m_loopAction->setCheckable(true);
     connect(m_loopAction, &QAction::toggled, [this](bool enabled) {
         emit loopToggled(enabled);
@@ -89,7 +89,7 @@ void TimeLineNodeToolBar::createActions()
 
     m_nextFrameAction = new QAction(this);
     m_nextFrameAction->setIcon(QIcon(":/tlnode/icons/rewind-forward.png"));
-    m_nextFrameAction->setToolTip(tr("Next Frame"));
+    m_nextFrameAction->setToolTip(tr("下一帧"));
     m_nextFrameAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Right));
     connect(m_nextFrameAction, &QAction::triggered, this, &TimeLineNodeToolBar::nextFrameClicked);
 
@@ -97,19 +97,19 @@ void TimeLineNodeToolBar::createActions()
 
     m_previousFrameAction->setIcon(QIcon(":/tlnode/icons/rewind-back.png"));
     m_previousFrameAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Left));
-    m_previousFrameAction->setToolTip(tr("Previous Frame"));
+    m_previousFrameAction->setToolTip(tr("上一帧"));
     connect(m_previousFrameAction, &QAction::triggered, this, &TimeLineNodeToolBar::prevFrameClicked);
 
     m_nextMediaAction = new QAction(this);
     m_nextMediaAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Right));
     m_nextMediaAction->setIcon(QIcon(":/tlnode/icons/play-next.png"));
-    m_nextMediaAction->setToolTip(tr("Next Media"));
+    m_nextMediaAction->setToolTip(tr("下一条素材"));
     // connect(m_nextMediaAction, &QAction::triggered, this, &TimeLineNodeToolBar::nextMediaClicked);
 
     m_previousMediaAction = new QAction(this);
     m_previousMediaAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Left));
     m_previousMediaAction->setIcon(QIcon(":/tlnode/icons/play-previous.png"));
-    m_previousMediaAction->setToolTip(tr("Previous Media"));
+    m_previousMediaAction->setToolTip(tr("上一条素材"));
     // connect(m_previousMediaAction, &QAction::triggered, this, &TimeLineNodeToolBar::previousMediaClicked);
 
     // m_fullscreenAction = new QAction(this);
@@ -133,7 +133,7 @@ void TimeLineNodeToolBar::createActions()
     m_moveClipLeftAction = new QAction(this);
 //    m_moveClipLeftAction->setShortcut(QKeySequence(Qt::Key_Left));
     m_moveClipLeftAction->setIcon(QIcon(":/tlnode/icons/move-left.png"));
-    m_moveClipLeftAction->setToolTip(tr("Move Clip -1"));
+    m_moveClipLeftAction->setToolTip(tr("片段左移 1 帧"));
     connect(m_moveClipLeftAction, &QAction::triggered, this,[this]() {
        emit moveClipClicked(-1);
     });
@@ -141,7 +141,7 @@ void TimeLineNodeToolBar::createActions()
     m_moveClipRightAction = new QAction(this);
 //    m_moveClipRightAction->setShortcut(QKeySequence(Qt::Key_Right));
     m_moveClipRightAction->setIcon(QIcon(":/tlnode/icons/move-right.png"));
-    m_moveClipRightAction->setToolTip(tr("Move Clip +1"));
+    m_moveClipRightAction->setToolTip(tr("片段右移 1 帧"));
     connect(m_moveClipRightAction, &QAction::triggered, this,[this]() {
        emit moveClipClicked(1);
     });
@@ -149,17 +149,17 @@ void TimeLineNodeToolBar::createActions()
     m_deleteClipAction = new QAction(this);
 //    m_deleteClipAction->setShortcut(QKeySequence(Qt::Key_Delete));
     m_deleteClipAction->setIcon(QIcon(":/tlnode/icons/delete-clip.png"));
-    m_deleteClipAction->setToolTip(tr("Delete Clip"));
+    m_deleteClipAction->setToolTip(tr("删除片段"));
     connect(m_deleteClipAction, &QAction::triggered, this, &TimeLineNodeToolBar::deleteClipClicked);
     // 创建缩放动作
     m_zoomInAction = new QAction(this);
     m_zoomInAction->setIcon(QIcon(":/tlnode/icons/zoomin.png"));
-    m_zoomInAction->setToolTip(tr("Zoom In"));
+    m_zoomInAction->setToolTip(tr("放大"));
     connect(m_zoomInAction, &QAction::triggered, this, &TimeLineNodeToolBar::zoomInClicked);
 
     m_zoomOutAction = new QAction(this);
     m_zoomOutAction->setIcon(QIcon(":/tlnode/icons/zoomout.png"));
-    m_zoomOutAction->setToolTip(tr("Zoom Out"));
+    m_zoomOutAction->setToolTip(tr("缩小"));
     connect(m_zoomOutAction, &QAction::triggered, this, &TimeLineNodeToolBar::zoomOutClicked);
 
 }
@@ -207,7 +207,7 @@ void TimeLineNodeToolBar::setupUI()
     // 当前帧动作
     m_currentFrameAction = new QAction(this);
     m_currentFrameAction->setIcon(QIcon(":/tlnode/icons/cursor.png"));
-    m_currentFrameAction->setToolTip(tr("Current Frame"));
+    m_currentFrameAction->setToolTip(tr("当前帧"));
     addAction(m_currentFrameAction);
     m_allActions["currentFrame"]=m_currentFrameAction;
     // 注册currentFrame 外部控制
@@ -224,7 +224,7 @@ void TimeLineNodeToolBar::setPlaybackState(bool isPlaying)
     }
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/tlnode/icons/pause.png" : ":/tlnode/icons/play.png"));
-    m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+    m_playAction->setToolTip(m_isPlaying ? tr("暂停") : tr("播放"));
 
 }
 
@@ -237,7 +237,7 @@ void TimeLineNodeToolBar::setLoopState(bool isLooping)
     m_loopAction->blockSignals(true);
     m_loopAction->setChecked(isLooping);
     m_loopAction->blockSignals(false);
-    m_loopAction->setToolTip(isLooping ? tr("Unloop") : tr("Loop"));
+    m_loopAction->setToolTip(isLooping ? tr("取消循环") : tr("循环"));
 }
 
 

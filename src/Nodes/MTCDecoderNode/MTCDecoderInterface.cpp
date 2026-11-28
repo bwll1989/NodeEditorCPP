@@ -5,6 +5,7 @@
 #include <QSpacerItem>
 #include <QVBoxLayout>
 #include "Common/Devices/MtcDevices/mtcreceiver.h"
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -38,11 +39,11 @@ MTCDecoderInterface::MTCDecoderInterface(QWidget *parent)
     layout->addWidget(timeCodeLabel);
 
     timeCodeStatusLabel->setAlignment(Qt::AlignCenter);
-    timeCodeStatusLabel->setText("Status: Idle");
+    timeCodeStatusLabel->setText(QCoreApplication::translate("Nodes::MTCDecoderInterface", "状态: 空闲"));
     layout->addWidget(timeCodeStatusLabel);
 
-    addRow(QObject::tr("MIDI输入:"), midiDeviceComboBox);
-    addRow(QObject::tr("偏移:"), timeCodeOffsetSpinBox);
+    addRow(QCoreApplication::translate("Nodes::MTCDecoderInterface", "MIDI输入:"), midiDeviceComboBox);
+    addRow(QCoreApplication::translate("Nodes::MTCDecoderInterface", "偏移:"), timeCodeOffsetSpinBox);
 
     layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     timeCodeOffsetSpinBox->setRange(-100, 100);

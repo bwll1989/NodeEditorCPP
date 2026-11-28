@@ -15,7 +15,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "键盘 / 鼠标输入监视"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "键盘 / 鼠标输入监视")
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
@@ -31,7 +31,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
-    QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString describe() const override {return tr(PLUGIN_DESCRIBE);};
     QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 

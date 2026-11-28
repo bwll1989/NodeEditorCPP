@@ -21,6 +21,7 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -58,19 +59,19 @@ namespace Nodes
             m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
             m_addButton->setIconSize(QSize(14, 14));
             m_addButton->setFlat(true);
-            m_addButton->setToolTip(QStringLiteral("添加输出按键行"));
+            m_addButton->setToolTip(QCoreApplication::translate("Nodes::HotKeyInterface", "添加输出按键行"));
             connect(m_addButton, &QPushButton::clicked, this, &HotKeyInterface::onAddClicked);
 
-            m_activeCheck = new QCheckBox(QStringLiteral("On"), this);
+            m_activeCheck = new QCheckBox(QCoreApplication::translate("Nodes::HotKeyInterface", "开"), this);
             m_activeCheck->setChecked(true);
-            m_activeCheck->setToolTip(QStringLiteral("使能监视键盘（与 ENABLE 输入同一状态）"));
+            m_activeCheck->setToolTip(QCoreApplication::translate("Nodes::HotKeyInterface", "使能监视键盘（与 ENABLE 输入同一状态）"));
             connect(m_activeCheck, &QCheckBox::toggled, this, &HotKeyInterface::onActiveToggled);
 
-            auto *modLabel = new QLabel(QStringLiteral("Mod"), this);
+            auto *modLabel = new QLabel(QCoreApplication::translate("Nodes::HotKeyInterface", "修饰键"), this);
 
             m_modifierCombo = new QComboBox(this);
-            m_modifierCombo->addItem(QStringLiteral("Ignore"), Ignore);
-            m_modifierCombo->addItem(QStringLiteral("None"), None);
+            m_modifierCombo->addItem(QCoreApplication::translate("Nodes::HotKeyInterface", "忽略"), Ignore);
+            m_modifierCombo->addItem(QCoreApplication::translate("Nodes::HotKeyInterface", "无"), None);
             m_modifierCombo->addItem(QStringLiteral("Ctrl"), Control);
             m_modifierCombo->addItem(QStringLiteral("Alt"), Alt);
             m_modifierCombo->addItem(QStringLiteral("Ctrl+Alt"), ControlAndAlt);
@@ -78,7 +79,7 @@ namespace Nodes
             m_modifierCombo->addItem(QStringLiteral("Shift+Alt"), ShiftAndAlt);
             m_modifierCombo->addItem(QStringLiteral("Shift+Ctrl"), ShiftAndControl);
             m_modifierCombo->addItem(QStringLiteral("Shift+Ctrl+Alt"), ShiftControlAndAlt);
-            m_modifierCombo->setToolTip(QStringLiteral("修饰键过滤"));
+            m_modifierCombo->setToolTip(QCoreApplication::translate("Nodes::HotKeyInterface", "修饰键过滤"));
             m_modifierCombo->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
             auto *left = new QVBoxLayout();

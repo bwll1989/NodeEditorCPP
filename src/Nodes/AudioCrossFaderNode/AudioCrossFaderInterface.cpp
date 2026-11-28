@@ -13,17 +13,17 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(4, 4, 4, 4);
 
-    auto *group = new QGroupBox(QStringLiteral("Audio Cross Fader"), this);
+    auto *group = new QGroupBox(tr("音频交叉淡化器"), this);
     auto *layout = new QGridLayout(group);
 
     channelsSpin = new IntDragValueWidget();
     channelsSpin->setRange(kMinChannels, kMaxChannels);
     channelsSpin->setSingleStep(1);
     channelsSpin->setValue(kDefaultChannels);
-    layout->addWidget(new QLabel(QStringLiteral("Channels")), 0, 0);
+    layout->addWidget(new QLabel(tr("声道")), 0, 0);
     layout->addWidget(channelsSpin, 0, 1);
 
-    layout->addWidget(new QLabel(QStringLiteral("Mix (0=A, 1=B):")), 1, 0);
+    layout->addWidget(new QLabel(tr("混合 (0=A, 1=B)：")), 1, 0);
     mixSpin = new FloatDragValueWidget();
     mixSpin->setRange(0.0, 1.0);
     mixSpin->setDecimals(3);
@@ -31,7 +31,7 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     mixSpin->setValue(0.0); // 默认输出 A，不混音
     layout->addWidget(mixSpin, 1, 1);
 
-    layout->addWidget(new QLabel(QStringLiteral("Fade Time (ms):")), 2, 0);
+    layout->addWidget(new QLabel(tr("淡变时间（毫秒）：")), 2, 0);
     fadeDurationSpin = new FloatDragValueWidget();
     fadeDurationSpin->setRange(10.0, 600000.0);
     fadeDurationSpin->setDecimals(1);
@@ -40,7 +40,7 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     fadeDurationSpin->setSuffix(QStringLiteral(" ms"));
     layout->addWidget(fadeDurationSpin, 2, 1);
 
-    layout->addWidget(new QLabel(QStringLiteral("Action:")), 3, 0);
+    layout->addWidget(new QLabel(tr("动作：")), 3, 0);
     auto *actionRow = new QWidget(group);
     auto *actionLayout = new QHBoxLayout(actionRow);
     actionLayout->setContentsMargins(0, 0, 0, 0);

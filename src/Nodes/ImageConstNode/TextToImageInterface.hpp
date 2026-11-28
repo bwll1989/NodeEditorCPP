@@ -14,6 +14,7 @@
 #include "QLabel"
 #include "QLayout"
 #include <QPushButton>
+#include <QCoreApplication>
 #include <QVariantMap>
 namespace Nodes
 {
@@ -44,22 +45,26 @@ class TextToImageInterface final : public QWidget{
             paddingSpin->setRange(0, 200);
             paddingSpin->setValue(10);
 
-            alignHCombo->addItems({"Left","Center","Right"});
+            alignHCombo->addItems({QCoreApplication::translate("Nodes::TextToImageInterface", "左"),
+                                   QCoreApplication::translate("Nodes::TextToImageInterface", "中"),
+                                   QCoreApplication::translate("Nodes::TextToImageInterface", "右")});
             alignHCombo->setCurrentIndex(0);
 
-            alignVCombo->addItems({"Top","Center","Bottom"});
+            alignVCombo->addItems({QCoreApplication::translate("Nodes::TextToImageInterface", "上"),
+                                   QCoreApplication::translate("Nodes::TextToImageInterface", "中"),
+                                   QCoreApplication::translate("Nodes::TextToImageInterface", "下")});
             alignVCombo->setCurrentIndex(0);
 
             wrapCheck->setChecked(true);
             antialiasCheck->setChecked(true);
 
-            boldCheck->setText("Bold");
-            italicCheck->setText("Italic");
-            underlineCheck->setText("Underline");
-            wrapCheck->setText("Wrap");
-            antialiasCheck->setText("AA");
+            boldCheck->setText(QCoreApplication::translate("Nodes::TextToImageInterface", "粗体"));
+            italicCheck->setText(QCoreApplication::translate("Nodes::TextToImageInterface", "斜体"));
+            underlineCheck->setText(QCoreApplication::translate("Nodes::TextToImageInterface", "下划线"));
+            wrapCheck->setText(QCoreApplication::translate("Nodes::TextToImageInterface", "换行"));
+            antialiasCheck->setText(QCoreApplication::translate("Nodes::TextToImageInterface", "抗锯齿"));
 
-            textEdit->setPlaceholderText("输入文本，支持换行");
+            textEdit->setPlaceholderText(QCoreApplication::translate("Nodes::TextToImageInterface", "输入文本，支持换行"));
             textEdit->setPlainText("Hello\nText TOP");
 
             main_layout->addWidget(display,0,0,1,4);
@@ -122,17 +127,17 @@ class TextToImageInterface final : public QWidget{
         QComboBox *alignVCombo = new QComboBox();
         IntDragValueWidget *paddingSpin = new IntDragValueWidget();
 
-        QPushButton *textColorButton = new QPushButton("Text Color");
-        QPushButton *bgColorButton = new QPushButton("Background Color");
+        QPushButton *textColorButton = new QPushButton(QCoreApplication::translate("Nodes::TextToImageInterface", "文字颜色"));
+        QPushButton *bgColorButton = new QPushButton(QCoreApplication::translate("Nodes::TextToImageInterface", "背景颜色"));
     private:
-        QLabel *sizeWidthLabel=new QLabel("Width: ");
-        QLabel *sizeHeightLabel=new QLabel("Height: ");
-        QLabel *textLabel = new QLabel("Text:");
-        QLabel *fontLabel = new QLabel("Font:");
-        QLabel *fontSizeLabel = new QLabel("Size:");
-        QLabel *styleLabel = new QLabel("Style:");
-        QLabel *alignLabel = new QLabel("H Align:");
-        QLabel *alignVLabel = new QLabel("V Align:");
-        QLabel *paddingLabel = new QLabel("Padding:");
+        QLabel *sizeWidthLabel=new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "宽度："));
+        QLabel *sizeHeightLabel=new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "高度："));
+        QLabel *textLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "文本："));
+        QLabel *fontLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "字体："));
+        QLabel *fontSizeLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "大小："));
+        QLabel *styleLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "样式："));
+        QLabel *alignLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "水平对齐："));
+        QLabel *alignVLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "垂直对齐："));
+        QLabel *paddingLabel = new QLabel(QCoreApplication::translate("Nodes::TextToImageInterface", "内边距："));
     };
 }

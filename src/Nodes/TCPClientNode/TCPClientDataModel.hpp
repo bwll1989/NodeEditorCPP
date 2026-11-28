@@ -15,6 +15,7 @@
 #include "QMutex"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -114,7 +115,8 @@ namespace Nodes
                 
                 // Update UI (Display Status Only)
                 QSignalBlocker blocker(widget->statusButton);
-                widget->statusButton->setText(isReady ? "Connected" : "Disconnect");
+                widget->statusButton->setText(isReady ? QCoreApplication::translate("Nodes::TCPClientDataModel", "已连接")
+                                                      : QCoreApplication::translate("Nodes::TCPClientDataModel", "已断开"));
                 widget->statusButton->setChecked(isReady);
                 widget->statusButton->setStyleSheet(isReady ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
                 widget->send->setEnabled(isReady);

@@ -6,6 +6,7 @@
 #include "QPushButton"
 #include "QLineEdit"
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 using namespace NodeDataTypes;
 
@@ -24,16 +25,16 @@ namespace Nodes
             interval->setValue(1000);
             interval->setRange(1, 3600000);
 
-            signalValue->setText(QStringLiteral("tick"));
+            signalValue->setText(tr("嗒"));
 
             start->setCheckable(true);
-            start->setText("Start");
+            start->setText(QCoreApplication::translate("Nodes::MetronomeInterface", "启动"));
 
-            auto labelInterval = new QLabel("间隔 (ms)", this);
+            auto labelInterval = new QLabel(QCoreApplication::translate("Nodes::MetronomeInterface", "间隔 (ms)"), this);
             main_layout->addWidget(labelInterval, 0, 0, 1, 1);
             main_layout->addWidget(interval, 0, 1, 1, 2);
 
-            auto labelSignal = new QLabel("信号值", this);
+            auto labelSignal = new QLabel(QCoreApplication::translate("Nodes::MetronomeInterface", "信号值"), this);
             main_layout->addWidget(labelSignal, 1, 0, 1, 1);
             main_layout->addWidget(signalValue, 1, 1, 1, 2);
 

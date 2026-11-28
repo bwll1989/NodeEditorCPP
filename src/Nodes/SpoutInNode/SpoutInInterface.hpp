@@ -15,6 +15,7 @@
 #include <QDateTime>
 #include <QCheckBox>
 #include <QSpacerItem>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -35,7 +36,7 @@ namespace Nodes
          * @param parent 父控件
          */
         explicit SpoutInInterface(QWidget *parent = nullptr)
-            : QGroupBox("Spout发送器",parent)
+            : QGroupBox(QCoreApplication::translate("Nodes::SpoutInInterface", "Spout发送器"),parent)
             , m_isReceiving(false)
         {
             // 创建界面组件
@@ -75,14 +76,14 @@ namespace Nodes
          */
         void updateConnectionStatus(bool connected) {
             if (connected) {
-                m_connectionStatusLabel->setText("状态: 已连接");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::SpoutInInterface", "状态: 已连接"));
                 m_connectionStatusLabel->setStyleSheet("color: green; font-weight: bold;");
-                m_startStopButton->setText("停止");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::SpoutInInterface", "停止"));
                 m_isReceiving = true;
             } else {
-                m_connectionStatusLabel->setText("状态: 未连接");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::SpoutInInterface", "状态: 未连接"));
                 m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-                m_startStopButton->setText("开始");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::SpoutInInterface", "开始"));
                 m_isReceiving = false;
             }
         }
@@ -97,7 +98,7 @@ namespace Nodes
 
             m_senderComboBox->clear();
             if (senders.isEmpty()) {
-                m_senderComboBox->addItem("无可用发送器");
+                m_senderComboBox->addItem(QCoreApplication::translate("Nodes::SpoutInInterface", "无可用发送器"));
                 m_senderComboBox->setEnabled(false);
             } else {
                 m_senderComboBox->addItems(senders);
@@ -143,7 +144,7 @@ namespace Nodes
         void onSenderSelectionChanged(int index) {
             if (index >= 0 && m_senderComboBox->isEnabled()) {
                 QString senderName = m_senderComboBox->itemText(index);
-                if (senderName != "无可用发送器") {
+                if (senderName != QCoreApplication::translate("Nodes::SpoutInInterface", "无可用发送器")) {
                     emit senderSelected(senderName);
                 }
             }
@@ -155,15 +156,15 @@ namespace Nodes
          */
         void initInterface() {
             m_senderComboBox = new QComboBox();
-            m_senderComboBox->addItem("无可用发送器");
+            m_senderComboBox->addItem(QCoreApplication::translate("Nodes::SpoutInInterface", "无可用发送器"));
             m_senderComboBox->setEditable(true);
             m_senderComboBox->setInsertPolicy(QComboBox::NoInsert);
-            m_senderComboBox->addItem("请输入或选择发送器名称");
-            m_refreshButton = new QPushButton("刷新");
+            m_senderComboBox->addItem(QCoreApplication::translate("Nodes::SpoutInInterface", "请输入或选择发送器名称"));
+            m_refreshButton = new QPushButton(QCoreApplication::translate("Nodes::SpoutInInterface", "刷新"));
             m_refreshButton->setMaximumWidth(50);
-            m_startStopButton = new QPushButton("开始");
+            m_startStopButton = new QPushButton(QCoreApplication::translate("Nodes::SpoutInInterface", "开始"));
             m_startStopButton->setCheckable(true);
-            m_connectionStatusLabel = new QLabel("状态: 未连接");
+            m_connectionStatusLabel = new QLabel(QCoreApplication::translate("Nodes::SpoutInInterface", "状态: 未连接"));
 
             m_mainLayout = new QVBoxLayout(this);
             m_mainLayout->setContentsMargins(5, 5, 5, 5);

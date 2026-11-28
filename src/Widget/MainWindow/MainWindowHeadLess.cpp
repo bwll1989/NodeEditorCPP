@@ -119,10 +119,10 @@ void MainWindowHeadLess::finishLoadSplash()
 void MainWindowHeadLess::init()
 {
     log = new LogHandler(nullptr);
-    emit initStatus(tr("Initialization log success"));
+    emit initStatus(tr("日志组件初始化完成"));
 
     dataflowViewsManger = new DataflowViewsManger(nullptr, this, DataflowPresentationMode::ModelOnly);
-    emit initStatus(tr("Initialization dataflow views success"));
+    emit initStatus(tr("数据流视图初始化完成"));
 
     // 【2026-11-12】TimeLineModel 创建退役（旧时间轴下线）
 
@@ -130,10 +130,10 @@ void MainWindowHeadLess::init()
     scheduledTaskManager = new ScheduledTaskManager(scheduledTaskModel, this);
     scheduledTaskManager->setToleranceSeconds(1);
     scheduledTaskManager->start(1000);
-    emit initStatus(tr("Initialization scheduled task success"));
+    emit initStatus(tr("计划任务初始化完成"));
 
     controller = new ExternalControler();
-    emit initStatus(tr("Initialization external controler success"));
+    emit initStatus(tr("外部控制初始化完成"));
 
     httpServer = new Flow::NodeHttpServer(this);
     const int port = ConfigManager::instance().getHttpServerPort();
@@ -141,7 +141,7 @@ void MainWindowHeadLess::init()
         emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
     }
     connect(httpServer, &Flow::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
-    emit initStatus(tr("Initialization Http Server success"));
+    emit initStatus(tr("HTTP 服务初始化完成"));
 
     // ---- 时间轴回放运行时（headless 回放半边）--------------------------------
     // GUI 版对应装配 = MainWindow：Scene + 下发桥 + 适配器 + 播放总控；
@@ -167,7 +167,7 @@ void MainWindowHeadLess::init()
     // 循环模式按配置（默认开：无人值守播完回零续播；运行中可经
     // /timeline/master/loop OSC 命令翻转——与 GUI 同源）
     msPlayback_->setLoop(ConfigManager::instance().isHeadlessTimelineLoop());
-    emit initStatus(tr("Initialization timeline playback runtime success"));
+    emit initStatus(tr("时间轴播放运行时初始化完成"));
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
@@ -208,7 +208,7 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
     };
 
     if (path.isEmpty()) {
-        reportLoadStatus(tr("Path is empty"));
+        reportLoadStatus(tr("路径为空"));
         finishLoadSplash();
         return false;
     }
@@ -277,7 +277,7 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
         }
     }
 
-    reportLoadStatus(tr("Load flow file completed"));
+    reportLoadStatus(tr("流程文件加载完成"));
     finishLoadSplash();
 
     if (trayIcon) {

@@ -11,6 +11,7 @@
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/AppConfig/ProjectPersistence.h"
+#include "Common/AppConfig/TranslationLoader.h"
 #include "platform/CrashDump.hpp" // 崩溃现场捕获（2026-11-13 补挂：此前从未调用，terminate 类静默死亡无 dmp）
 #include <QtWebEngineQuick/QtWebEngineQuick>
 #include <optional>
@@ -133,6 +134,9 @@ int main(int argc, char *argv[])
 
     // 设置应用程序基本信息
     setupAppInfo();
+    // 【i18n 2026-11-28】按 General/Language 加载翻译（"en" → flow_en.qm）；
+    // 必须在首个窗口/控件构造前装入，否则构造期写入的文本无法命中译文
+    TranslationLoader::installAppTranslators();
     // 【已临时禁用】异常退出检测（2026-11-12）：不再在启动时读/写 Recovery/LastShutdownClean 标志，
     // g_previousShutdownWasClean 保持默认 true，shouldOfferRecovery() 直接短路，
     // 启动时不会再弹“检测到上次异常退出”的恢复对话框（无头模式 AutoRestore 同样被闸门拦下）。
@@ -147,8 +151,8 @@ int main(int argc, char *argv[])
     parser.setApplicationDescription(AppConstants::FILE_DESCRIPTION);
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument("file", "要打开的文件路径");
-    QCommandLineOption restartDelayOpt("restart-delay-ms", "自重启启动前延迟毫秒（避免单实例冲突）", "ms");
+    parser.addPositionalArgument("file", QCoreApplication::translate("Bootstrap", "要打开的文件路径"));
+    QCommandLineOption restartDelayOpt("restart-delay-ms", QCoreApplication::translate("Bootstrap", "自重启启动前延迟毫秒（避免单实例冲突）"), "ms");
     parser.addOption(restartDelayOpt);
     parser.process(app);
 
@@ -179,7 +183,7 @@ int main(int argc, char *argv[])
         alreadyRunning = isApplicationRunning(sharedMemory, &segmentOurs);
     }
     if (alreadyRunning || !segmentOurs) {
-        QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
+        QMessageBox::warning(nullptr, "", QCoreApplication::translate("Bootstrap", "应用程序已经在运行中。"));
         return 1;
     }
 
@@ -192,7 +196,7 @@ int main(int argc, char *argv[])
 
     // 创建启动画面
     QScopedPointer<CustomSplashScreen> splashScreen(new CustomSplashScreen());
-    splashScreen->updateStatus("Preparing to open the program...");
+    splashScreen->updateStatus(QCoreApplication::translate("Bootstrap", "正在准备打开程序..."));
     
     // 创建主窗口
     QScopedPointer<MainWindow> mainWindow(new MainWindow());

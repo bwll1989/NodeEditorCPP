@@ -135,13 +135,13 @@ QString LicenseManager::tokenSummary(const QString& code)
     QString summary;
     const QString type = payloadValue(obj, "Type").toString().toLower();
     if (type == QLatin1String("trial")) {
-        summary = QStringLiteral("试用授权");
+        summary = QCoreApplication::translate("LicenseManager", "试用授权");
     } else if (type == QLatin1String("subscription")) {
-        summary = QStringLiteral("订阅授权");
+        summary = QCoreApplication::translate("LicenseManager", "订阅授权");
     } else if (type == QLatin1String("perpetual")) {
-        summary = QStringLiteral("永久授权");
+        summary = QCoreApplication::translate("LicenseManager", "永久授权");
     } else {
-        summary = QStringLiteral("授权");
+        summary = QCoreApplication::translate("LicenseManager", "授权");
     }
 
     const QString expires = payloadValue(obj, "ExpiresAt").toString();
@@ -151,12 +151,12 @@ QString LicenseManager::tokenSummary(const QString& code)
         if (t > 0) {
             datePart.truncate(t);
         }
-        summary += QStringLiteral(" · 有效期至 ") + datePart;
+        summary += QCoreApplication::translate("LicenseManager", " · 有效期至 %1").arg(datePart);
     }
 
     const QString customer = payloadValue(obj, "CustomerCode").toString();
     if (!customer.isEmpty()) {
-        summary += QStringLiteral(" · 客户 ") + customer;
+        summary += QCoreApplication::translate("LicenseManager", " · 客户 %1").arg(customer);
     }
 
     return summary;
@@ -169,7 +169,9 @@ bool LicenseManager::generateActivationRequest(const QString& activationCode, co
     const bool ok = LicenseClientSdk::instance().generateRequest(activationCode, outPath, &reason);
     if (error) {
         *error = ok ? QString()
-                    : (reason.isEmpty() ? QStringLiteral("生成激活请求文件失败") : reason);
+                    : (reason.isEmpty()
+                           ? QCoreApplication::translate("LicenseManager", "生成激活请求文件失败")
+                           : reason);
     }
     return ok;
 }

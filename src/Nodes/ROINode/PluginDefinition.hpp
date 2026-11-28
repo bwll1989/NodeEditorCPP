@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "交互式 ROI 图像裁剪"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "交互式 ROI 图像裁剪")
 #define PLUGIN_TAG "Image"
 
 class DLL_EXPORT Plugin
@@ -52,7 +52,7 @@ public:
      * @brief 返回插件说明
      * @return 插件说明
      */
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
 
     /**
      * @brief 返回插件分类标签

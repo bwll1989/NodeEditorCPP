@@ -43,7 +43,7 @@ public:
 
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表下放）
-    QString clipDisplayName() const override { return QStringLiteral("文本"); }
+    QString clipDisplayName() const override { return tr("文本"); }
     /// 无媒体绑定语义：文本内容走文本专属编辑区（2026-11-13 用户定案，
     /// 面板媒体区隐藏；动态文件名解析对 Text 无意义，hint 留空 = 不覆盖）
     bool hasMediaBinding() const override { return false; }

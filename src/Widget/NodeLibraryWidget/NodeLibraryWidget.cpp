@@ -18,7 +18,7 @@ void NodeLibraryWidget::initLayout(){
     mainLayout=new QVBoxLayout(this);
 //    // Add filterbox to the context menu
     txtBox = new QLineEdit(this);
-    txtBox->setPlaceholderText(QStringLiteral("Filter"));
+    txtBox->setPlaceholderText(tr("筛选"));
     txtBox->setClearButtonEnabled(true);
     QAction *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), tr("搜索"), txtBox);
     txtBox->addAction(searchIconAction, QLineEdit::LeadingPosition);

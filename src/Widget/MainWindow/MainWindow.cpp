@@ -92,7 +92,8 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
 {
     const QFileInfo fi(file);
     if (!fi.exists() || !fi.isFile()) {
-        err = "文件不存在: " + file.toStdString();
+        // 【i18n】err 链为 std::string 管道，入参显示文本统一走 translate（context=MainWindow）
+        err = QCoreApplication::translate("MainWindow", "文件不存在: %1").arg(file).toStdString();
         return false;
     }
     // 扩展名 → 素材种类（与 standalone SceneAssembler::kindFromExt 同表，
@@ -114,7 +115,7 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
     // ArtnetClipModel 逐帧提取 DMX（2026-11-27 用户报告修复）
     if (ext == QLatin1String("dmx")) ext_kind = ms::AssetKind::Artnet;
     if (ext_kind == ms::AssetKind::Unknown) {
-        err = "不识别的文件类型: ." + ext.toStdString();
+        err = QCoreApplication::translate("MainWindow", "不识别的文件类型: .%1").arg(ext).toStdString();
         return false;
     }
     // 类型校验（钩子语义）：kind 非空时须与期望匹配；kind = Unknown（轨道
@@ -132,8 +133,8 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
                 default:                    return "unknown";
             }
         };
-        err = std::string("文件类型与轨道不匹配: .") + ext.toStdString()
-              + "（期望 " + name(kind) + "）";
+        err = QCoreApplication::translate("MainWindow", "文件类型与轨道不匹配: .%1（期望 %2）")
+                  .arg(ext, QLatin1String(name(kind))).toStdString();
         return false;
     }
 
@@ -251,7 +252,7 @@ void MainWindow::init()
 
     m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonIconOnly,CDockWidget::eState::StateDocked);
     this->setCentralWidget(m_DockManager);
-    emit initStatus("Initialization ADS success");
+    emit initStatus(tr("停靠框架初始化完成"));
      // 菜单条控件
     menuBar=new MenuBarWidget(this);
     connect(menuBar, &MenuBarWidget::recentFileTriggered,
@@ -262,9 +263,9 @@ void MainWindow::init()
      // 初始化时刷新最近文件菜单
     menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
     setupFramelessWindow();
-    emit initStatus("Initialization MenuBar success");
+    emit initStatus(tr("菜单栏初始化完成"));
     // 首先实例化终端显示控件，保证日志输出正常
-    auto *logDockViewer= m_DockManager->createDockWidget("终端显示");
+    auto *logDockViewer= m_DockManager->createDockWidget(tr("终端显示"));
     logTable=new LogWidget();
     log=new LogHandler(logTable);
     logDockViewer->setWidget(logTable);
@@ -273,18 +274,18 @@ void MainWindow::init()
     //添加菜单项
     QMenu* OptionsMenu = makeOptionsMenu(logTable, logTable->getActions());
     logDockViewer->setTitleBarActions({OptionsMenu->menuAction()});
-    emit initStatus("Initialization console widget");
+    emit initStatus(tr("控制台组件初始化完成"));
    
     // 按配置应用主题（重启后生效）
     applyTheme(ConfigManager::instance().isDefaultDarkTheme());
     // 节点编辑：由 DataflowViewsManger 创建单画布 Dock
-    emit initStatus("load node editor style success");
+    emit initStatus(tr("节点编辑器样式加载完成"));
     dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
     // 插件需先注册再创建根图（否则 Container/内置节点不在 registry）
     pluginsManagerDlg=new PluginsManagerWidget();
-    emit initStatus("initialization pluginsManager success");
+    emit initStatus(tr("插件管理器初始化完成"));
     dataflowViewsManger->resetDataflow(QStringLiteral("dataflow"));
-    emit initStatus("Init node editor success");
+    emit initStatus(tr("节点编辑器初始化完成"));
     // 节点库控件
     msScene_ = new ms::Scene();
     // 默认空场景
@@ -323,22 +324,22 @@ void MainWindow::init()
     }
 
     msTimelineAdapter_->loadSceneToModel(*msScene_);
-    emit initStatus("Initialization Master Timeline Adapter success");
+    emit initStatus(tr("主时间轴适配器初始化完成"));
     msTimeline_ = new BaseTimelineWidget(msTimelineAdapter_, this);
-    emit initStatus("Initialization Master Timeline Widget success");
+    emit initStatus(tr("主时间轴组件初始化完成"));
     msCanvas_ = new ms::SceneCanvasWidget(this);
     msCanvas_->setScene(msScene_);
     msCanvas_->setPreviewRenderer(msPreview_);             // 所见即所得（占位画法兜底）
-    emit initStatus("Initialization Preview Canvas Widget success");
+    emit initStatus(tr("预览画布组件初始化完成"));
     msPreview_->setScene(msScene_);
  
-    auto *previewDockWidget = m_DockManager->createDockWidget(QStringLiteral("预览画布"));
+    auto *previewDockWidget = m_DockManager->createDockWidget(tr("预览画布"));
     previewDockWidget->setObjectName(QStringLiteral("ms_preview"));
     previewDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
     previewDockWidget->setWidget(msCanvas_);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, previewDockWidget);
     // 时间轴 dock（底部；objectName 沿用 "timeline"）
-    auto *timelineDockWidget = m_DockManager->createDockWidget(QStringLiteral("时间轴"));
+    auto *timelineDockWidget = m_DockManager->createDockWidget(tr("时间轴"));
     timelineDockWidget->setObjectName(QStringLiteral("timeline"));
     timelineDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
     timelineDockWidget->setWidget(msTimeline_);
@@ -369,8 +370,8 @@ void MainWindow::init()
     msTimelineAdapter_->setAutoPublishInterval(
         ConfigManager::instance().getSceneAutoPublishMs());
 
-    emit initStatus("Initialization MediaServer editor docks success");
-    auto *calendarDockWidget = m_DockManager->createDockWidget("计划任务");
+    emit initStatus(tr("MediaServer 编辑器停靠窗口初始化完成"));
+    auto *calendarDockWidget = m_DockManager->createDockWidget(tr("计划任务"));
     calendarDockWidget->setObjectName("scheduled");
     calendarDockWidget->setIcon(QIcon(":/icons/icons/scheduled.png"));
     scheduledTaskWidget=new ScheduledTaskWidget();
@@ -378,9 +379,9 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, calendarDockWidget);
     // QMenu* Options = makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions());
     calendarDockWidget->setTitleBarActions({makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions())->menuAction()});
-    emit initStatus("Initialization Scheduled Task success");
+    emit initStatus(tr("计划任务初始化完成"));
     // 媒体库控件
-    auto *mediaLibraryDockWidget = m_DockManager->createDockWidget("媒体库");
+    auto *mediaLibraryDockWidget = m_DockManager->createDockWidget(tr("媒体库"));
     mediaLibraryDockWidget->setObjectName("mediaLibrary");
     mediaLibraryDockWidget->setIcon(QIcon(":/icons/icons/media_mange.png"));
     mediaLibraryWidget = new MediaLibraryWidget();
@@ -388,7 +389,7 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, mediaLibraryDockWidget);
     // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
     mediaLibraryDockWidget->setTitleBarActions({makeOptionsMenu(mediaLibraryWidget, mediaLibraryWidget->getActions())->menuAction()});
-    emit initStatus("Initialization Media Library Widget success");
+    emit initStatus(tr("媒体库初始化完成"));
    
     controller=new ExternalControler();
 	 // http 服务器
@@ -399,12 +400,12 @@ void MainWindow::init()
     if (!startHttpServerWithRetry(httpServer, port, 3000)) {
         emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
     } else {
-        emit initStatus("Initialization Http Server success");
+        emit initStatus(tr("HTTP 服务初始化完成"));
     }
     if (dataflowViewsManger) {
         dataflowViewsManger->setHttpServer(httpServer);
     }
-    emit initStatus("Initialization external controler success");
+    emit initStatus(tr("外部控制初始化完成"));
     // 更新默认布局
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::updateVisualState);
     //恢复布局
@@ -640,7 +641,7 @@ void MainWindow::loadFileFromPath(const QString &path)
     };
 
     if (loadPath.isEmpty()) {
-        reportStatus(tr("Path is empty"));
+        reportStatus(tr("路径为空"));
         return;
     }
 
@@ -732,9 +733,9 @@ void MainWindow::loadFileFromPath(const QString &path)
     }
 
     if (resolution.fromRecovery) {
-        reportStatus(tr("Recovered from autosave"));
+        reportStatus(tr("已从自动保存恢复"));
     }
-    reportStatus(tr("Load flow file completed"));
+    reportStatus(tr("流程文件加载完成"));
 }
 
 /**
@@ -774,9 +775,9 @@ void MainWindow::applyStartupLoadResolution(const ProjectLoadResolution& resolut
  */
 void MainWindow::loadFileFromExplorer() {
     QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                    tr("Open Flow Scene"),
+                                                    tr("打开 Flow 场景"),
                                                     QDir::homePath(),
-                                                    tr("Flow Scene Files (*.flow)"));
+                                                    tr("Flow 场景文件 (*.flow)"));
     if (!QFileInfo::exists(fileName))
         return;
 
@@ -894,9 +895,9 @@ void MainWindow::saveFileToPath(){
 //保存文件到资源管理器
 void MainWindow::saveFileToExplorer() {
     QString fileName = QFileDialog::getSaveFileName(nullptr,
-                                                    tr("Open Flow Scene"),
+                                                    tr("打开 Flow 场景"),
                                                     QDir::homePath(),
-                                                    tr("Flow Scene Files (*.flow)"));
+                                                    tr("Flow 场景文件 (*.flow)"));
     if (!fileName.isEmpty()) {
         if (!fileName.endsWith("flow", Qt::CaseInsensitive))
             fileName += ".flow";
@@ -1004,7 +1005,7 @@ void MainWindow::updateViewMenu(QMenu* menu)
 }
 
 QMenu* MainWindow::makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions) {
-    QMenu* menu = new QMenu(tr("Options"), parent);
+    QMenu* menu = new QMenu(tr("选项"), parent);
     QAction* menuAct = menu->menuAction();
     menuAct->setObjectName("optionsMenu");
     menuAct->setIcon(QIcon(":/ads_icons/ads_icons/custom-menu-button.svg"));

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <QtCore/QObject>
+#include <QtCore/QCoreApplication>
 #include <QPointer>
 #include <atomic>
 
@@ -22,6 +23,7 @@
 #include "Common/DataTypes/ImageReadback.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include <QCoreApplication>
 
 using namespace NodeDataTypes;
 using namespace Nodes;
@@ -154,7 +156,7 @@ public Q_SLOTS:
     void toggleEditorMode()
     {
         colorEditorWidget->setParent(nullptr);
-        colorEditorWidget->setWindowTitle("颜色编辑器");
+        colorEditorWidget->setWindowTitle(QCoreApplication::translate("Nodes::ImageLayoutModel", "颜色编辑器"));
         colorEditorWidget->setWindowIcon(QIcon(":/icons/icons/curve.png"));
         colorEditorWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
         colorEditorWidget->setAttribute(Qt::WA_DeleteOnClose, false);

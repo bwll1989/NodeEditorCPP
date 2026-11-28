@@ -58,14 +58,14 @@ ControlClipSection::ControlClipSection(const ClipSectionContext& ctx,
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(4);
 
-    auto* box = new QGroupBox(QStringLiteral("指令"), this);
+    auto* box = new QGroupBox(tr("指令"), this);
     auto* lay = new QVBoxLayout(box);
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
 
     // ---- 触发语义说明 --------------------------------------------------------
     hint_ = new QLabel(
-        QStringLiteral("播放头进入片段时按顺序发送以下指令（上升沿触发一次）"), box);
+        tr("播放头进入片段时按顺序发送以下指令（上升沿触发一次）"), box);
     hint_->setObjectName("controlHint");
     hint_->setStyleSheet(QStringLiteral("color:#888;"));
     hint_->setWordWrap(true);
@@ -80,10 +80,10 @@ ControlClipSection::ControlClipSection(const ClipSectionContext& ctx,
     // ---- 测试发送 ------------------------------------------------------------
     auto* btn_row = new QHBoxLayout();
     btn_row->addStretch(1);
-    send_btn_ = new QPushButton(QStringLiteral("测试发送"), box);
+    send_btn_ = new QPushButton(tr("测试发送"), box);
     send_btn_->setObjectName("controlSend");
-    send_btn_->setToolTip(QStringLiteral("立即发送当前列表中的全部指令"
-                                         "（与播放触发同一入口）"));
+    send_btn_->setToolTip(tr("立即发送当前列表中的全部指令"
+                             "（与播放触发同一入口）"));
     btn_row->addWidget(send_btn_);
     lay->addLayout(btn_row);
 

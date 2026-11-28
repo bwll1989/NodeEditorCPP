@@ -17,6 +17,7 @@
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -31,18 +32,16 @@ public:
         layout->setContentsMargins(4, 2, 4, 4);
         layout->setSpacing(4);
 
-        fileSelectComboBox->setPlaceholderText(QStringLiteral("Select .mpcdi from Media Library"));
+        fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::MpcdiInterface", "从媒体库选择 .mpcdi"));
         layout->addWidget(fileSelectComboBox);
 
         auto* coordRow = new QHBoxLayout();
         coordRow->setContentsMargins(0, 0, 0, 0);
-        auto* coordLabel = new QLabel(QStringLiteral("坐标"), this);
-        coordModeCombo->addItem(QStringLiteral("自动"));
-        coordModeCombo->addItem(QStringLiteral("归一化 [0,1]"));
-        coordModeCombo->addItem(QStringLiteral("像素"));
-        coordModeCombo->setToolTip(QStringLiteral(
-            "自动：多数样本在 0–1 时当归一化，否则当像素。"
-            "归一化直接当 UV。像素会先除以 buffer 分辨率。"));
+        auto* coordLabel = new QLabel(QCoreApplication::translate("Nodes::MpcdiInterface", "坐标"), this);
+        coordModeCombo->addItem(QCoreApplication::translate("Nodes::MpcdiInterface", "自动"));
+        coordModeCombo->addItem(QCoreApplication::translate("Nodes::MpcdiInterface", "归一化 [0,1]"));
+        coordModeCombo->addItem(QCoreApplication::translate("Nodes::MpcdiInterface", "像素"));
+        coordModeCombo->setToolTip(QCoreApplication::translate("Nodes::MpcdiInterface", "自动：多数样本在 0–1 时当归一化，否则当像素。归一化直接当 UV。像素会先除以 buffer 分辨率。"));
         coordRow->addWidget(coordLabel);
         coordRow->addWidget(coordModeCombo, 1);
         layout->addLayout(coordRow);
@@ -53,20 +52,20 @@ public:
             box->setToolTip(tip);
             layout->addWidget(box);
         };
-        addCheck(flipYCheck, QStringLiteral("翻转 Y（内容）"), true,
-                 QStringLiteral("把变形图里的内容 V 反过来。画面上下颠倒时切换。"));
-        addCheck(flipWarpYCheck, QStringLiteral("翻转 Y（变形图）"), false,
-                 QStringLiteral("读变形图时上下对调。变形形状本身镜像时打开。"));
-        addCheck(regionLocalCheck, QStringLiteral("Region 局部"), false,
-                 QStringLiteral("把整幅 buffer 的 UV 收进当前 region，让这一路铺满输出。"));
-        addCheck(blendCheck, QStringLiteral("Blend"), true,
-                 QStringLiteral("用 alpha 图做边缘融合。关闭后只变形。"));
-        addCheck(linearizeAlphaCheck, QStringLiteral("Alpha 线性化"), true,
-                 QStringLiteral("按 gammaEmbedded 把 alpha 还原成线性权重后再相乘。"));
-        addCheck(blackLevelCheck, QStringLiteral("黑电平"), true,
-                 QStringLiteral("有 beta 图时按协议抬黑：颜色 = alpha×颜色×(1-beta)+beta。没有 beta 图时无效果。"));
-        addCheck(boundsCheck, QStringLiteral("区域边界"), false,
-                 QStringLiteral("边缘画绿线，未映射的像素涂成琥珀色。"));
+        addCheck(flipYCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "翻转 Y（内容）"), true,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "把变形图里的内容 V 反过来。画面上下颠倒时切换。"));
+        addCheck(flipWarpYCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "翻转 Y（变形图）"), false,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "读变形图时上下对调。变形形状本身镜像时打开。"));
+        addCheck(regionLocalCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "Region 局部"), false,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "把整幅 buffer 的 UV 收进当前 region，让这一路铺满输出。"));
+        addCheck(blendCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "融合"), true,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "用 alpha 图做边缘融合。关闭后只变形。"));
+        addCheck(linearizeAlphaCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "Alpha 线性化"), true,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "按 gammaEmbedded 把 alpha 还原成线性权重后再相乘。"));
+        addCheck(blackLevelCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "黑电平"), true,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "有 beta 图时按协议抬黑：颜色 = alpha×颜色×(1-beta)+beta。没有 beta 图时无效果。"));
+        addCheck(boundsCheck, QCoreApplication::translate("Nodes::MpcdiInterface", "区域边界"), false,
+                 QCoreApplication::translate("Nodes::MpcdiInterface", "边缘画绿线，未映射的像素涂成琥珀色。"));
 
         layout->addStretch(1);
         setMinimumWidth(230);

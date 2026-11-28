@@ -48,6 +48,7 @@
 #include <atomic>
 #include <memory>
 #include <opencv2/opencv.hpp>
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -202,7 +203,7 @@ inline void drawLabelOverlay(cv::Mat& frame, const GestureMatch& match)
                              .arg(static_cast<int>(match.score * 100.f + 0.5f)));
     } else {
         painter.setPen(QColor(160, 160, 160));
-        painter.drawText(16, font.pixelSize() + 16, QStringLiteral("未匹配"));
+        painter.drawText(16, font.pixelSize() + 16, QCoreApplication::translate("Nodes::GestureDataModel", "未匹配"));
     }
     painter.end();
 }
@@ -564,7 +565,7 @@ private:
         if (path.isEmpty()) {
             if (force && !m_libraryName.isEmpty()) {
                 widget->statusLabel->setText(
-                    QStringLiteral("媒体库中未找到动作库: %1").arg(m_libraryName));
+                    QCoreApplication::translate("Nodes::GestureDataModel", "媒体库中未找到动作库: %1").arg(m_libraryName));
             }
             return;
         }
@@ -593,7 +594,7 @@ private:
         {
             QMutexLocker locker(&m_libraryMutex);
             for (const auto& g : m_library->gestures) {
-                labels << QStringLiteral("%1（%2 帧，阈值 %3）")
+                labels << QCoreApplication::translate("Nodes::GestureDataModel", "%1（%2 帧，阈值 %3）")
                               .arg(g.label)
                               .arg(g.samples.size())
                               .arg(g.threshold, 0, 'f', 2);
@@ -611,12 +612,12 @@ private:
         {
             QMutexLocker locker(&m_libraryMutex);
             if (m_library->featureVersion != GestureFeature::kFeatureVersion) {
-                versionNote = QStringLiteral("（⚠️ 旧版特征库 v%1，识别精度不可信，请用 GestureRecorder 重新录制）")
+                versionNote = QCoreApplication::translate("Nodes::GestureDataModel", "（⚠️ 旧版特征库 v%1，识别精度不可信，请用 GestureRecorder 重新录制）")
                                   .arg(m_library->featureVersion);
             }
         }
         widget->statusLabel->setText(
-            QStringLiteral("已加载 %1 个标签 / %2 帧样本%3")
+            QCoreApplication::translate("Nodes::GestureDataModel", "已加载 %1 个标签 / %2 帧样本%3")
                 .arg(labels.size())
                 .arg(sampleTotal)
                 .arg(versionNote));
@@ -736,7 +737,7 @@ private:
         if (!hasLibrary && !m_libraryWarned) {
             m_libraryWarned = true;
             widget->statusLabel->setText(
-                QStringLiteral("动作库为空：请先把 GestureRecorder 录制的 .gesture 导入媒体库 Gestures 分类后选择"));
+                QCoreApplication::translate("Nodes::GestureDataModel", "动作库为空：请先把 GestureRecorder 录制的 .gesture 导入媒体库 Gestures 分类后选择"));
         }
         if (!hasLibrary) {
             return;

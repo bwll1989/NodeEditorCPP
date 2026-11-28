@@ -19,6 +19,7 @@
 #include <QtGlobal>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc.hpp>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -236,7 +237,7 @@ protected:
         QPainter painter(this);
         painter.fillRect(rect(), QColor(26, 26, 26));
         painter.setPen(QColor(180, 180, 180));
-        painter.drawText(rect(), Qt::AlignCenter, tr("请先连接图像输入"));
+        painter.drawText(rect(), Qt::AlignCenter, QCoreApplication::translate("Nodes::ROIImageView", "请先连接图像输入"));
         painter.end();
     }
 
@@ -752,7 +753,7 @@ public:
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(6);
 
-        hintLabel = new QLabel(tr("左键拖动绘制 ROI，输出框选区域图像"), this);
+        hintLabel = new QLabel(QCoreApplication::translate("Nodes::ROIInterface", "左键拖动绘制 ROI，输出框选区域图像"), this);
         hintLabel->setWordWrap(true);
         layout->addWidget(hintLabel);
 
@@ -760,7 +761,7 @@ public:
         layout->addWidget(imageViewHost, 1);
         imageView = imageViewHost->view();
 
-        infoLabel = new QLabel(tr("当前 ROI：未选择"), this);
+        infoLabel = new QLabel(QCoreApplication::translate("Nodes::ROIInterface", "当前 ROI：未选择"), this);
         infoLabel->setWordWrap(true);
         layout->addWidget(infoLabel);
     }
@@ -773,11 +774,11 @@ public:
     void setRoiInfo(const QRect& roiRect, const QSize& imageSize)
     {
         if (!roiRect.isValid() || roiRect.width() <= 0 || roiRect.height() <= 0) {
-            infoLabel->setText(tr("当前 ROI：未选择"));
+            infoLabel->setText(QCoreApplication::translate("Nodes::ROIInterface", "当前 ROI：未选择"));
             return;
         }
         infoLabel->setText(
-            tr("当前 ROI：X=%1, Y=%2, W=%3, H=%4，图像尺寸：%5x%6")
+            QCoreApplication::translate("Nodes::ROIInterface", "当前 ROI：X=%1, Y=%2, W=%3, H=%4，图像尺寸：%5x%6")
                 .arg(roiRect.x())
                 .arg(roiRect.y())
                 .arg(roiRect.width())

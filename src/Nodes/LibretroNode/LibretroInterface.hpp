@@ -13,6 +13,7 @@
 #include <QWidget>
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -32,10 +33,10 @@ public:
     explicit LibretroInterface(QWidget* parent = nullptr)
         : QGroupBox(QStringLiteral("Libretro (GBA)"), parent)
     {
-        m_activeCheck = new QCheckBox(QStringLiteral("Active"), this);
+        m_activeCheck = new QCheckBox(QCoreApplication::translate("Nodes::LibretroInterface", "激活"), this);
 
         m_romSelector = new SelectorComboBox(MediaLibrary::Category::Game, this);
-        m_romSelector->setPlaceholderText(QStringLiteral("从媒体库选择 .gba"));
+        m_romSelector->setPlaceholderText(QCoreApplication::translate("Nodes::LibretroInterface", "从媒体库选择 .gba"));
         m_romSelector->setMinimumWidth(180);
 
         m_volumeSlider = new QSlider(Qt::Horizontal, this);
@@ -91,16 +92,16 @@ public:
         sysRow->addWidget(m_startBtn);
 
         // ---- 动作与状态 ----
-        m_resetBtn = new QPushButton(QStringLiteral("Reset"), this);
-        m_saveBtn = new QPushButton(QStringLiteral("Save State"), this);
-        m_loadBtn = new QPushButton(QStringLiteral("Load State"), this);
+        m_resetBtn = new QPushButton(QCoreApplication::translate("Nodes::LibretroInterface", "重置"), this);
+        m_saveBtn = new QPushButton(QCoreApplication::translate("Nodes::LibretroInterface", "保存状态"), this);
+        m_loadBtn = new QPushButton(QCoreApplication::translate("Nodes::LibretroInterface", "加载状态"), this);
 
         auto* actionRow = new QHBoxLayout();
         actionRow->addWidget(m_resetBtn);
         actionRow->addWidget(m_saveBtn);
         actionRow->addWidget(m_loadBtn);
 
-        m_stateLabel = new QLabel(QStringLiteral("状态: 未启动"), this);
+        m_stateLabel = new QLabel(QCoreApplication::translate("Nodes::LibretroInterface", "状态: 未启动"), this);
         m_stateLabel->setWordWrap(true);
         m_stateLabel->setStyleSheet(QStringLiteral("color: #c44; font-weight: bold;"));
 
@@ -108,7 +109,7 @@ public:
         mainForm->setContentsMargins(0, 0, 0, 0);
         mainForm->setSpacing(4);
         mainForm->addRow(QStringLiteral("ROM"), m_romSelector);
-        mainForm->addRow(QStringLiteral("Volume"), m_volumeSlider);
+        mainForm->addRow(QCoreApplication::translate("Nodes::LibretroInterface", "音量"), m_volumeSlider);
 
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(6, 8, 6, 6);

@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QWidget>
+#include <QCoreApplication>
 
 /**
  * HotKey 单行：左侧删除 + 按键录制。
@@ -41,14 +42,14 @@ public:
         m_deleteBtn->setFlat(true);
         m_deleteBtn->setFocusPolicy(Qt::NoFocus);
         m_deleteBtn->setCursor(Qt::PointingHandCursor);
-        m_deleteBtn->setToolTip(QStringLiteral("删除"));
+        m_deleteBtn->setToolTip(QCoreApplication::translate("HotKeyItem", "删除"));
         connect(m_deleteBtn, &QPushButton::clicked, this, &HotKeyItem::deleteRequested);
 
         m_keyEdit = new QKeySequenceEdit(this);
         m_keyEdit->setMaximumSequenceLength(1);
         m_keyEdit->setFixedHeight(inner);
         m_keyEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        m_keyEdit->setToolTip(QStringLiteral("录制要监视的按键"));
+        m_keyEdit->setToolTip(QCoreApplication::translate("HotKeyItem", "录制要监视的按键"));
         connect(m_keyEdit, &QKeySequenceEdit::keySequenceChanged,
                 this, [this](const QKeySequence &) { Q_EMIT configChanged(); });
 

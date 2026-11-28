@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <QCoreApplication>
 #include <QColor>
 
 #include "TweenDots.h" // TweenChannelDots/TweenKeyDot（帧域镜像数据结构）
@@ -58,24 +59,24 @@ inline QColor tweenPropColor(int prop) {
 // ---------------------------------------------------------------------------
 inline const char* tweenPropShortName(int prop) {
     switch (prop) {
-        case 1:  return "位置";
-        case 2:  return "尺寸";
-        case 3:  return "旋转";
-        case 4:  return "不透明度";
-        case 5:  return "Z";
-        case 6:  return "角点 LT";
-        case 7:  return "角点 RT";
-        case 8:  return "角点 RB";
-        case 9:  return "角点 LB";
-        case 10: return "俯仰"; // v4 退役（合并进"旋转"）
-        case 11: return "偏航"; // v4 退役（合并进"旋转"）
-        case 12: return "裁切 左";
-        case 13: return "裁切 右";
-        case 14: return "裁切 上";
-        case 15: return "裁切 下";
-        case 16: return "音频增益"; // 2026-11-10（漏项修复：右键菜单曾显"?"）
-        case 17: return "RGB 增益"; // 2026-11-20 颜色合成追加
-        case 18: return "Gamma";
-        default: return "?";
+        case 1:  return QT_TRANSLATE_NOOP("TweenPalette", "位置");
+        case 2:  return QT_TRANSLATE_NOOP("TweenPalette", "尺寸");
+        case 3:  return QT_TRANSLATE_NOOP("TweenPalette", "旋转");
+        case 4:  return QT_TRANSLATE_NOOP("TweenPalette", "不透明度");
+        case 5:  return QT_TRANSLATE_NOOP("TweenPalette", "Z");
+        case 6:  return QT_TRANSLATE_NOOP("TweenPalette", "角点 LT");
+        case 7:  return QT_TRANSLATE_NOOP("TweenPalette", "角点 RT");
+        case 8:  return QT_TRANSLATE_NOOP("TweenPalette", "角点 RB");
+        case 9:  return QT_TRANSLATE_NOOP("TweenPalette", "角点 LB");
+        case 10: return QT_TRANSLATE_NOOP("TweenPalette", "俯仰"); // v4 退役（合并进"旋转"）
+        case 11: return QT_TRANSLATE_NOOP("TweenPalette", "偏航"); // v4 退役（合并进"旋转"）
+        case 12: return QT_TRANSLATE_NOOP("TweenPalette", "裁切 左");
+        case 13: return QT_TRANSLATE_NOOP("TweenPalette", "裁切 右");
+        case 14: return QT_TRANSLATE_NOOP("TweenPalette", "裁切 上");
+        case 15: return QT_TRANSLATE_NOOP("TweenPalette", "裁切 下");
+        case 16: return QT_TRANSLATE_NOOP("TweenPalette", "音频增益"); // 2026-11-10（漏项修复：右键菜单曾显"?"）
+        case 17: return QT_TRANSLATE_NOOP("TweenPalette", "RGB 增益"); // 2026-11-20 颜色合成追加
+        case 18: return QT_TRANSLATE_NOOP("TweenPalette", "Gamma");
+        default: return QT_TRANSLATE_NOOP("TweenPalette", "?");
     }
 }

@@ -28,12 +28,12 @@ public:
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(6);
 
-        auto idGroup = new QGroupBox(QStringLiteral("设备"), this);
+        auto idGroup = new QGroupBox(tr("设备"), this);
         auto idLayout = new QGridLayout(idGroup);
         idLayout->setContentsMargins(6, 8, 6, 6);
         idLayout->setSpacing(4);
 
-        idLayout->addWidget(new QLabel(QStringLiteral("设备 ID:"), this), 0, 0);
+        idLayout->addWidget(new QLabel(tr("设备 ID:"), this), 0, 0);
         _idEdit = new IntDragValueWidget(this);
         _idEdit->setRange(0, 255);
         _idEdit->setValue(0x15);
@@ -41,7 +41,7 @@ public:
 
         mainLayout->addWidget(idGroup);
 
-        auto channelGroup = new QGroupBox(QStringLiteral("六路调光 (0～255)"), this);
+        auto channelGroup = new QGroupBox(tr("六路调光 (0～255)"), this);
         auto channelLayout = new QGridLayout(channelGroup);
         channelLayout->setContentsMargins(6, 8, 6, 6);
         channelLayout->setSpacing(4);
@@ -55,7 +55,7 @@ public:
         }
         mainLayout->addWidget(channelGroup);
 
-        _enableButton = new QPushButton(QStringLiteral("全开/全关"), this);
+        _enableButton = new QPushButton(tr("全开/全关"), this);
         _enableButton->setCheckable(true);
         _enableButton->setChecked(false);
         mainLayout->addWidget(_enableButton);

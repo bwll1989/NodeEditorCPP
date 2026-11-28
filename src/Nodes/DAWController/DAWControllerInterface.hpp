@@ -2,6 +2,7 @@
 // Created by Administrator on 2023/12/13.
 //
 
+#include <QCoreApplication>
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
@@ -42,7 +43,7 @@ namespace Nodes
          * @param parent 父控件
          */
         explicit DAWControllerInterface(QWidget *parent = nullptr){
-            setTitle(QStringLiteral("DAW 播放控制器"));
+            setTitle(QCoreApplication::translate("Nodes::DAWControllerInterface", "DAW 播放控制器"));
 
             auto *mainLayout = new QVBoxLayout(this);
             mainLayout->setContentsMargins(8, 8, 8, 8);
@@ -60,24 +61,24 @@ namespace Nodes
 
             hostEdit->setText(QStringLiteral("127.0.0.1"));
 
-            refreshButton->setText(QStringLiteral("刷新列表"));
-            refreshButton->setToolTip(QStringLiteral("GET /players 获取当前播放列表"));
+            refreshButton->setText(QCoreApplication::translate("Nodes::DAWControllerInterface", "刷新列表"));
+            refreshButton->setToolTip(QCoreApplication::translate("Nodes::DAWControllerInterface", "GET /players 获取当前播放列表"));
 
             connectionStatusLabel->setFlat(true);
             connectionStatusLabel->setCheckable(true);
             connectionStatusLabel->setEnabled(false);
-            connectionStatusLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionStatusLabel->setText(QCoreApplication::translate("Nodes::DAWControllerInterface", "连接: 未连接"));
             connectionStatusLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::DAWControllerInterface", "状态: —"));
 
             auto *hostRow = new QWidget();
             auto *hostRowLayout = new QHBoxLayout(hostRow);
             hostRowLayout->setContentsMargins(0, 0, 0, 0);
             hostRowLayout->setSpacing(8);
-            hostRowLayout->addWidget(new QLabel(QStringLiteral("主机:")));
+            hostRowLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::DAWControllerInterface", "主机:")));
             hostRowLayout->addWidget(hostEdit, 1);
             mainLayout->addWidget(hostRow);
 
@@ -86,7 +87,7 @@ namespace Nodes
             mainLayout->addWidget(connectionStatusLabel);
             mainLayout->addWidget(statusLabel);
 
-            mainLayout->addWidget(new QLabel(QStringLiteral("播放器列表 (点击图标切换播放/停止):")));
+            mainLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::DAWControllerInterface", "播放器列表 (点击图标切换播放/停止):")));
             playlistWidget->setMinimumHeight(160);
             playlistWidget->setSelectionMode(QAbstractItemView::SingleSelection);
             mainLayout->addWidget(playlistWidget, 1);
@@ -104,19 +105,19 @@ namespace Nodes
         void updateConnectionStatus(bool connected) {
             connectionStatusLabel->setChecked(connected);
             connectionStatusLabel->setText(connected
-                ? QStringLiteral("连接: 已连接")
-                : QStringLiteral("连接: 未连接"));
+                ? QCoreApplication::translate("Nodes::DAWControllerInterface", "连接: 已连接")
+                : QCoreApplication::translate("Nodes::DAWControllerInterface", "连接: 未连接"));
             connectionStatusLabel->setStyleSheet(connected
                 ? QStringLiteral("color: green; font-weight: bold;")
                 : QStringLiteral("color: red; font-weight: bold;"));
         }
 
     private:
-        QLabel *hostLabel = new QLabel("主机地址:");
+        QLabel *hostLabel = new QLabel(QCoreApplication::translate("Nodes::DAWControllerInterface", "主机地址:"));
 
     public:
         QPushButton* refreshButton = new QPushButton();
-        QPushButton *connectionStatusLabel = new QPushButton("Disconnect");
+        QPushButton *connectionStatusLabel = new QPushButton(QCoreApplication::translate("Nodes::DAWControllerInterface", "断开"));
         QLabel *statusLabel = new QLabel();
         QListWidget *playlistWidget = new QListWidget();
     };

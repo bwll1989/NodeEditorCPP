@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QLayout>
 #include <QPushButton>
@@ -32,9 +33,9 @@ namespace Nodes
             bitrateCombo->addItem(QStringLiteral("1000000"), 1000000);
             bitrateCombo->setCurrentIndex(2);
 
-            modeCombo->addItem(QStringLiteral("Normal"), 0);
-            modeCombo->addItem(QStringLiteral("Listen Only"), 1);
-            modeCombo->addItem(QStringLiteral("Loopback"), 2);
+            modeCombo->addItem(QCoreApplication::translate("Nodes::CanBusInterface", "正常"), 0);
+            modeCombo->addItem(QCoreApplication::translate("Nodes::CanBusInterface", "只听"), 1);
+            modeCombo->addItem(QCoreApplication::translate("Nodes::CanBusInterface", "回环"), 2);
 
             channelSpin->setRange(0, 7);
             channelSpin->setValue(0);
@@ -64,7 +65,7 @@ namespace Nodes
             statusButton->setFlat(true);
             statusButton->setCheckable(true);
             statusButton->setEnabled(false);
-            statusButton->setText(QStringLiteral("Disconnected"));
+            statusButton->setText(QCoreApplication::translate("Nodes::CanBusInterface", "已断开"));
             statusButton->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
             sendButton->setEnabled(false);
 
@@ -85,7 +86,7 @@ namespace Nodes
             }
 
             if (deviceCombo->count() == 0) {
-                deviceCombo->addItem(QStringLiteral("(no candleLight device)"), -1);
+                deviceCombo->addItem(QCoreApplication::translate("Nodes::CanBusInterface", "（无 candleLight 设备）"), -1);
             } else if (current.isValid()) {
                 const int idx = deviceCombo->findData(current);
                 if (idx >= 0) {
@@ -96,23 +97,23 @@ namespace Nodes
 
         QGridLayout *mainLayout = new QGridLayout(this);
         QComboBox *deviceCombo = new QComboBox();
-        QPushButton *refreshButton = new QPushButton(QStringLiteral("Refresh Devices"));
+        QPushButton *refreshButton = new QPushButton(QCoreApplication::translate("Nodes::CanBusInterface", "刷新设备"));
         IntDragValueWidget *channelSpin = new IntDragValueWidget();
         QComboBox *bitrateCombo = new QComboBox();
         QComboBox *modeCombo = new QComboBox();
         QLineEdit *canIdEdit = new QLineEdit();
         QLineEdit *dataEdit = new QLineEdit();
-        QCheckBox *extendedCheck = new QCheckBox(QStringLiteral("Extended ID"));
-        QCheckBox *rtrCheck = new QCheckBox(QStringLiteral("RTR"));
+        QCheckBox *extendedCheck = new QCheckBox(QCoreApplication::translate("Nodes::CanBusInterface", "扩展帧"));
+        QCheckBox *rtrCheck = new QCheckBox(QCoreApplication::translate("Nodes::CanBusInterface", "远程帧"));
         QPushButton *statusButton = new QPushButton();
-        QPushButton *sendButton = new QPushButton(QStringLiteral("Send"));
+        QPushButton *sendButton = new QPushButton(QCoreApplication::translate("Nodes::CanBusInterface", "发送"));
 
     private:
-        QLabel *deviceLabel = new QLabel(QStringLiteral("Device"));
-        QLabel *channelLabel = new QLabel(QStringLiteral("Channel"));
-        QLabel *bitrateLabel = new QLabel(QStringLiteral("Bitrate"));
-        QLabel *modeLabel = new QLabel(QStringLiteral("Mode"));
+        QLabel *deviceLabel = new QLabel(QCoreApplication::translate("Nodes::CanBusInterface", "设备"));
+        QLabel *channelLabel = new QLabel(QCoreApplication::translate("Nodes::CanBusInterface", "通道"));
+        QLabel *bitrateLabel = new QLabel(QCoreApplication::translate("Nodes::CanBusInterface", "比特率"));
+        QLabel *modeLabel = new QLabel(QCoreApplication::translate("Nodes::CanBusInterface", "模式"));
         QLabel *canIdLabel = new QLabel(QStringLiteral("CAN ID"));
-        QLabel *dataLabel = new QLabel(QStringLiteral("Data (HEX)"));
+        QLabel *dataLabel = new QLabel(QCoreApplication::translate("Nodes::CanBusInterface", "数据 (HEX)"));
     };
 }

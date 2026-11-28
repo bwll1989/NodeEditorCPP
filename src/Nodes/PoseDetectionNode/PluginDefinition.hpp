@@ -16,7 +16,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "yolo v11n pose detection"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "YOLO v11n 姿态检测")
 #define PLUGIN_TAG "ONNX"
 class DLL_EXPORT Plugin
     : public QObject
@@ -32,7 +32,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
-    QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString describe() const override {return tr(PLUGIN_DESCRIBE);};
     QString tag() const override {return PLUGIN_TAG;};
     bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;

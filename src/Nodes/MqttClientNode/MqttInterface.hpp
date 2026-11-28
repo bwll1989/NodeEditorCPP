@@ -11,6 +11,7 @@
 #include <QtWidgets/QLabel>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 
 using namespace std;
@@ -32,7 +33,7 @@ namespace Nodes
             statusButton->setFlat(true);
             statusButton->setCheckable(true);
             statusButton->setEnabled(false);
-            statusButton->setText("Disconnect");
+            statusButton->setText(QCoreApplication::translate("Nodes::MqttInterface", "断开"));
             statusButton->setStyleSheet("color: red; font-weight: bold;");
 
             main_layout->addWidget(hostLabel, 0, 0);
@@ -65,14 +66,14 @@ namespace Nodes
         QLineEdit *topicEdit = new QLineEdit(this);
         QLineEdit *payloadEdit = new QLineEdit(this);
         QComboBox *qosCombo = new QComboBox(this);
-        QPushButton *publishButton = new QPushButton("Publish", this);
-        QPushButton *statusButton = new QPushButton("Disconnect", this);
+        QPushButton *publishButton = new QPushButton(QCoreApplication::translate("Nodes::MqttInterface", "发布"), this);
+        QPushButton *statusButton = new QPushButton(QCoreApplication::translate("Nodes::MqttInterface", "断开"), this);
     private:
-        QLabel *hostLabel = new QLabel("Host", this);
-        QLabel *portLabel = new QLabel("Port", this);
-        QLabel *userLabel = new QLabel("Username", this);
-        QLabel *passLabel = new QLabel("Password", this);
-        QLabel *topicLabel = new QLabel("Topic", this);
-        QLabel *payloadLabel = new QLabel("Payload", this);
+        QLabel *hostLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "主机"), this);
+        QLabel *portLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "端口"), this);
+        QLabel *userLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "用户名"), this);
+        QLabel *passLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "密码"), this);
+        QLabel *topicLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "主题"), this);
+        QLabel *payloadLabel = new QLabel(QCoreApplication::translate("Nodes::MqttInterface", "负载"), this);
     };
 }

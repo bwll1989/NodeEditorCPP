@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <QCoreApplication>
 
 using namespace NodeDataTypes;
 
@@ -147,9 +148,9 @@ public:
 
             auto* kindRow = new QHBoxLayout();
             m_kindBox = new QComboBox(m_widget);
-            m_kindBox->addItem(QStringLiteral("显示器"), QStringLiteral("display"));
-            m_kindBox->addItem(QStringLiteral("窗口"), QStringLiteral("window"));
-            m_refreshButton = new QPushButton(QStringLiteral("刷新"), m_widget);
+            m_kindBox->addItem(QCoreApplication::translate("Nodes::ScreenCaptureModel", "显示器"), QStringLiteral("display"));
+            m_kindBox->addItem(QCoreApplication::translate("Nodes::ScreenCaptureModel", "窗口"), QStringLiteral("window"));
+            m_refreshButton = new QPushButton(QCoreApplication::translate("Nodes::ScreenCaptureModel", "刷新"), m_widget);
             kindRow->addWidget(m_kindBox, 1);
             kindRow->addWidget(m_refreshButton);
             layout->addLayout(kindRow);
@@ -159,7 +160,7 @@ public:
             layout->addWidget(m_sourceBox);
 
             auto* optionRow = new QHBoxLayout();
-            m_cursorBox = new QCheckBox(QStringLiteral("鼠标光标"), m_widget);
+            m_cursorBox = new QCheckBox(QCoreApplication::translate("Nodes::ScreenCaptureModel", "鼠标光标"), m_widget);
             m_fpsBox = new IntDragValueWidget(m_widget);
             m_fpsBox->setRange(1, 60);
             m_fpsBox->setSingleStep(1);
@@ -170,7 +171,7 @@ public:
             optionRow->addWidget(m_fpsBox);
             layout->addLayout(optionRow);
 
-            m_status = new QLabel(QStringLiteral("未采集"), m_widget);
+            m_status = new QLabel(QCoreApplication::translate("Nodes::ScreenCaptureModel", "未采集"), m_widget);
             m_status->setWordWrap(true);
             layout->addWidget(m_status);
 
@@ -210,8 +211,8 @@ private slots:
             m_sourceId.clear();
             m_displayName.clear();
             stopCapture();
-            m_lastError = m_kind == ScreenSource::Kind::Window ? QStringLiteral("无可用窗口")
-                                                              : QStringLiteral("无可用显示器");
+            m_lastError = m_kind == ScreenSource::Kind::Window ? QCoreApplication::translate("Nodes::ScreenCaptureModel", "无可用窗口")
+                                                              : QCoreApplication::translate("Nodes::ScreenCaptureModel", "无可用显示器");
             updateStatusLabel();
             return;
         }
@@ -354,8 +355,8 @@ private:
         m_listed = m_kind == ScreenSource::Kind::Window ? ScreenCaptureThread::listWindows()
                                                         : ScreenCaptureThread::listDisplays();
         if (m_listed.isEmpty()) {
-            m_sourceBox->addItem(m_kind == ScreenSource::Kind::Window ? QStringLiteral("无可用窗口")
-                                                                      : QStringLiteral("无可用显示器"));
+            m_sourceBox->addItem(m_kind == ScreenSource::Kind::Window ? QCoreApplication::translate("Nodes::ScreenCaptureModel", "无可用窗口")
+                                                                      : QCoreApplication::translate("Nodes::ScreenCaptureModel", "无可用显示器"));
             return;
         }
         for (const ScreenSource& source : m_listed) {
@@ -437,7 +438,7 @@ private:
         if (m_sourceId.isEmpty()) {
             const QList<ScreenSource> displays = ScreenCaptureThread::listDisplays();
             if (displays.isEmpty()) {
-                m_lastError = QStringLiteral("没有可用显示器");
+                m_lastError = QCoreApplication::translate("Nodes::ScreenCaptureModel", "没有可用显示器");
                 updateStatusLabel();
                 return;
             }
@@ -455,7 +456,7 @@ private:
         ScreenSource source;
         if (!findSource(source)) {
             qWarning() << "Screen Capture: source not found" << m_sourceId;
-            m_lastError = QStringLiteral("找不到捕获源");
+            m_lastError = QCoreApplication::translate("Nodes::ScreenCaptureModel", "找不到捕获源");
             updateStatusLabel();
             return;
         }
@@ -516,7 +517,7 @@ private:
             return;
         }
         if (m_running) {
-            QString text = QStringLiteral("采集中");
+            QString text = QCoreApplication::translate("Nodes::ScreenCaptureModel", "采集中");
             if (!m_method.isEmpty()) {
                 text += QStringLiteral(" · ") + m_method;
             }
@@ -526,7 +527,7 @@ private:
             m_status->setText(text);
             return;
         }
-        m_status->setText(m_lastError.isEmpty() ? QStringLiteral("未采集") : m_lastError);
+        m_status->setText(m_lastError.isEmpty() ? QCoreApplication::translate("Nodes::ScreenCaptureModel", "未采集") : m_lastError);
     }
 
     QPointer<QWidget> m_widget;

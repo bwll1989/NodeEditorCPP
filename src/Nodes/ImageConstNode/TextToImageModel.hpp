@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QtCore/QCoreApplication>
 #include <iostream>
 
 #include <QtCore/QObject>
@@ -22,6 +23,7 @@
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/DataTypes/ImageGpuUpload.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include <QCoreApplication>
 
 using namespace NodeDataTypes;
 using namespace Nodes;
@@ -268,8 +270,8 @@ public:
     }
 
 public Q_SLOTS:
-    void toggleTextColorEditor() { showColorEditor(m_textColorEditorWidget, "文字颜色"); }
-    void toggleBackgroundColorEditor() { showColorEditor(m_bgColorEditorWidget, "背景颜色"); }
+    void toggleTextColorEditor() { showColorEditor(m_textColorEditorWidget, QCoreApplication::translate("Nodes::TextToImageModel", "文字颜色")); }
+    void toggleBackgroundColorEditor() { showColorEditor(m_bgColorEditorWidget, QCoreApplication::translate("Nodes::TextToImageModel", "背景颜色")); }
 
 private Q_SLOTS:
     void onInputChanged()

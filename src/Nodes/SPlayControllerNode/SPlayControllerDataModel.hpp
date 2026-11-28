@@ -34,6 +34,7 @@
 #include "PluginDefinition.hpp"
 #include "SplayHttpClient.h"
 #include "SPlayControllerInterface.hpp"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -243,7 +244,7 @@ namespace Nodes
             QJsonObject body{{QStringLiteral("command"), 8}};
             m_pendingPoll = true;
             if (!m_connected) {
-                setStatus(QStringLiteral("正在连接 %1 ...").arg(url.toString()));
+                setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "正在连接 %1 ...").arg(url.toString()));
             }
             m_client->postJson(url, body, QStringLiteral("poll"));
         }
@@ -303,7 +304,7 @@ namespace Nodes
                 }
                 updatePlaylistsFromJson(json);
                 if (!wasConnected || prevCount != m_playlists.size()) {
-                    setStatus(QStringLiteral("已加载 %1 个 playlist").arg(m_playlists.size()));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "已加载 %1 个 playlist").arg(m_playlists.size()));
                 }
                 return;
             }
@@ -312,11 +313,11 @@ namespace Nodes
             if (kind == QLatin1String("play") || kind == QLatin1String("stop")
                 || kind == QLatin1String("playAll") || kind == QLatin1String("stopAll")) {
                 if (kind == QLatin1String("playAll")) {
-                    setStatus(QStringLiteral("已发送全部播放"));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "已发送全部播放"));
                 } else if (kind == QLatin1String("stopAll")) {
-                    setStatus(QStringLiteral("已发送全停"));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "已发送全停"));
                 } else {
-                    setStatus(QStringLiteral("命令成功: %1").arg(kind));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "命令成功: %1").arg(kind));
                 }
                 QTimer::singleShot(200, this, &SPlayControllerDataModel::fetchPlaylists);
             }
@@ -332,15 +333,15 @@ namespace Nodes
                 // 已连接时单次迟到超时不立刻断开，避免「先已连接再被旧请求打成未连接」
                 if (!m_connected || m_pollFailStreak >= 2) {
                     setConnected(false);
-                    setStatus(QStringLiteral("连接失败: %1").arg(message));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "连接失败: %1").arg(message));
                 } else {
-                    setStatus(QStringLiteral("轮询异常，稍后重试: %1").arg(message));
+                    setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "轮询异常，稍后重试: %1").arg(message));
                 }
                 return;
             }
 
             m_commandBusy = false;
-            setStatus(QStringLiteral("命令失败 (%1): %2").arg(kind, message));
+            setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "命令失败 (%1): %2").arg(kind, message));
             flushCommandQueue();
         }
 
@@ -380,7 +381,7 @@ namespace Nodes
 
         void setStatus(const QString &text)
         {
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)
@@ -475,7 +476,7 @@ namespace Nodes
             }
 
             if (index >= m_playlists.size() || m_playlists[index].playlistId < 0) {
-                setStatus(QStringLiteral("序号 %1 无对应 playlist").arg(index));
+                setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "序号 %1 无对应 playlist").arg(index));
                 return;
             }
 
@@ -518,7 +519,7 @@ namespace Nodes
 
             const PendingCommand cmd = m_commandQueue.dequeue();
             m_commandBusy = true;
-            setStatus(QStringLiteral("发送 %1...").arg(cmd.kind));
+            setStatus(QCoreApplication::translate("Nodes::SPlayControllerDataModel", "发送 %1...").arg(cmd.kind));
             m_client->postJson(url, cmd.body, cmd.kind);
         }
 

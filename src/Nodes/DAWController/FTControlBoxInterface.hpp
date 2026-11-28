@@ -31,28 +31,28 @@ public:
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(6);
 
-        auto connectionGroup = new QGroupBox("连接设置", this);
+        auto connectionGroup = new QGroupBox(tr("连接设置"), this);
         auto connectionLayout = new QGridLayout(connectionGroup);
         connectionLayout->setContentsMargins(6, 8, 6, 6);
         connectionLayout->setSpacing(4);
 
-        connectionLayout->addWidget(new QLabel("主机:", this), 0, 0);
+        connectionLayout->addWidget(new QLabel(tr("主机:"), this), 0, 0);
         _hostEdit = new QLineEdit("127.0.0.1", this);
         connectionLayout->addWidget(_hostEdit, 0, 1);
 
-        connectionLayout->addWidget(new QLabel("端口:", this), 1, 0);
+        connectionLayout->addWidget(new QLabel(tr("端口:"), this), 1, 0);
         _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(2001);
         connectionLayout->addWidget(_portEdit, 1, 1);
 
-        connectionLayout->addWidget(new QLabel("485地址:", this), 2, 0);
+        connectionLayout->addWidget(new QLabel(tr("485地址:"), this), 2, 0);
         _addr485Edit = new IntDragValueWidget(this);
         _addr485Edit->setRange(0, 255);
         _addr485Edit->setValue(1);
         connectionLayout->addWidget(_addr485Edit, 2, 1);
 
-        _statusLabel = new QPushButton("状态: 未连接", this);
+        _statusLabel = new QPushButton(tr("状态: 未连接"), this);
         _statusLabel->setEnabled(false);
         _statusLabel->setCheckable(true);
         _statusLabel->setFlat(true);
@@ -61,7 +61,7 @@ public:
 
         mainLayout->addWidget(connectionGroup);
 
-        auto ioGroup = new QGroupBox("IO 输出 ($BB^/$YY^/$KK^)", this);
+        auto ioGroup = new QGroupBox(tr("IO 输出 ($BB^/$YY^/$KK^)"), this);
         auto ioLayout = new QGridLayout(ioGroup);
         ioLayout->setContentsMargins(6, 8, 6, 6);
         ioLayout->setSpacing(4);
@@ -91,7 +91,7 @@ public:
     void setConnectionStatus(bool connected)
     {
         _statusLabel->setChecked(connected);
-        _statusLabel->setText(connected ? "状态: 已连接" : "状态: 未连接");
+        _statusLabel->setText(connected ? tr("状态: 已连接") : tr("状态: 未连接"));
         _statusLabel->setStyleSheet(
             connected ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
     }

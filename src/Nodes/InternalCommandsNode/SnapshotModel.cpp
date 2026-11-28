@@ -3,6 +3,7 @@
 #include <QSignalBlocker>
 #include <QTimer>
 #include <algorithm>
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -163,7 +164,7 @@ void SnapshotModel::setActiveIndex(int index)
 void SnapshotModel::recallPreset(int index)
 {
     if (index < 0 || index >= m_presets.size()) {
-        widget->setStatusText(tr("预设索引无效"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "预设索引无效"));
         return;
     }
 
@@ -171,47 +172,47 @@ void SnapshotModel::recallPreset(int index)
 
     const QString title = sceneTitle();
     if (title.isEmpty()) {
-        widget->setStatusText(tr("无法确定当前 dataflow"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "无法确定当前 dataflow"));
         return;
     }
 
     const SnapshotPreset &preset = m_presets.at(index);
     if (preset.nodes.isEmpty()) {
-        widget->setStatusText(tr("预设「%1」为空，请先点「更新」写入").arg(preset.name));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "预设「%1」为空，请先点「更新」写入").arg(preset.name));
         return;
     }
 
     if (!GraphSnapshotBridge::instance()->applySnapshot(title, preset.nodes)) {
-        widget->setStatusText(tr("召回失败：未找到对应 dataflow"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "召回失败：未找到对应 dataflow"));
         return;
     }
 
     m_activeOutput = std::make_shared<VariableData>(QVariant(index));
     Q_EMIT dataUpdated(0);
-    widget->setStatusText(tr("已召回预设「%1」").arg(preset.name));
+    widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "已召回预设「%1」").arg(preset.name));
 }
 
 void SnapshotModel::updatePreset(int index)
 {
     if (index < 0 || index >= m_presets.size()) {
-        widget->setStatusText(tr("预设索引无效"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "预设索引无效"));
         return;
     }
 
     const QString title = sceneTitle();
     if (title.isEmpty()) {
-        widget->setStatusText(tr("无法确定当前 dataflow"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "无法确定当前 dataflow"));
         return;
     }
 
     const QVector<NodeId> nodeIds = collectCaptureNodeIds();
     if (nodeIds.isEmpty()) {
-        widget->setStatusText(tr("请先在画布中选中要写入的节点"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "请先在画布中选中要写入的节点"));
         return;
     }
 
     m_presets[index].nodes = GraphSnapshotBridge::instance()->captureNodes(title, nodeIds);
-    widget->setStatusText(tr("已更新 %1 个节点到「%2」")
+    widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "已更新 %1 个节点到「%2」")
                               .arg(m_presets[index].nodes.size())
                               .arg(m_presets[index].name));
 }
@@ -224,7 +225,7 @@ void SnapshotModel::captureActivePreset()
 void SnapshotModel::addPreset()
 {
     SnapshotPreset preset;
-    preset.name = tr("预设 %1").arg(m_presets.size() + 1);
+    preset.name = QCoreApplication::translate("Nodes::SnapshotModel", "预设 %1").arg(m_presets.size() + 1);
     m_presets.append(preset);
     m_activeIndex = m_presets.size() - 1;
     syncUi();
@@ -237,7 +238,7 @@ void SnapshotModel::removePresetAt(int index)
     }
 
     if (m_presets.size() <= 1) {
-        widget->setStatusText(tr("至少保留一个预设"));
+        widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "至少保留一个预设"));
         return;
     }
 
@@ -249,7 +250,7 @@ void SnapshotModel::removePresetAt(int index)
         m_activeIndex = m_presets.size() - 1;
     }
     syncUi();
-    widget->setStatusText(tr("已删除「%1」").arg(removedName));
+    widget->setStatusText(QCoreApplication::translate("Nodes::SnapshotModel", "已删除「%1」").arg(removedName));
 }
 
 void SnapshotModel::onGlobalEvent(const GlobalEvent &ev)
@@ -288,7 +289,7 @@ void SnapshotModel::ensureDefaultPreset()
 {
     if (m_presets.isEmpty()) {
         SnapshotPreset preset;
-        preset.name = tr("预设 1");
+        preset.name = QCoreApplication::translate("Nodes::SnapshotModel", "预设 1");
         m_presets.append(preset);
         m_activeIndex = 0;
     }

@@ -7,6 +7,7 @@
 #include "QLayout"
 #include "QPushButton"
 #include "QLineEdit"
+#include <QCoreApplication>
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 using namespace NodeDataTypes;
@@ -27,13 +28,13 @@ namespace Nodes
             this->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
         }
     private:
-        QLabel *countLabel=new QLabel("计数:");
-        QLabel *ConditionLabel=new QLabel("条件:");
+        QLabel *countLabel=new QLabel(QCoreApplication::translate("Nodes::CountInterface", "计数:"));
+        QLabel *ConditionLabel=new QLabel(QCoreApplication::translate("Nodes::CountInterface", "条件:"));
     public:
         IntDragValueWidget* countDisplay=new IntDragValueWidget(this);
         QGridLayout *main_layout=new QGridLayout(this);
         QLineEdit *Editor=new QLineEdit("$input[\"default\"]");
-        QPushButton *Clear=new QPushButton("clear");
+        QPushButton *Clear=new QPushButton(QCoreApplication::translate("Nodes::CountInterface", "清空"));
 
     };
 }

@@ -16,6 +16,7 @@
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -39,30 +40,30 @@ namespace Nodes
             };
 
             hostEdit->setText(QStringLiteral("192.168.1.10"));
-            hostEdit->setPlaceholderText(QStringLiteral("Q-SYS Core IP"));
+            hostEdit->setPlaceholderText(QCoreApplication::translate("Nodes::QSysQrcInterface", "Q-SYS Core IP 地址"));
 
-            userEdit->setPlaceholderText(QStringLiteral("可选 login NAME"));
+            userEdit->setPlaceholderText(QCoreApplication::translate("Nodes::QSysQrcInterface", "可选 login NAME"));
             pinEdit->setEchoMode(QLineEdit::Password);
-            pinEdit->setPlaceholderText(QStringLiteral("可选 login PIN"));
+            pinEdit->setPlaceholderText(QCoreApplication::translate("Nodes::QSysQrcInterface", "可选 login PIN"));
 
             xmlSelector->setPlaceholderText(
-                QStringLiteral("媒体库中的 Named Controls XML"));
+                QCoreApplication::translate("Nodes::QSysQrcInterface", "媒体库中的 Named Controls XML"));
             xmlSelector->setAllowCustomInput(true);
 
             // 仅状态显示 + OSC drag，不可手动点按连接
             connectButton->setCheckable(true);
             connectButton->setFlat(true);
             connectButton->setEnabled(false);
-            connectButton->setText(QStringLiteral("未连接"));
+            connectButton->setText(QCoreApplication::translate("Nodes::QSysQrcInterface", "未连接"));
             connectButton->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             designLabel->setWordWrap(true);
             designLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            designLabel->setText(QStringLiteral("Design: —"));
+            designLabel->setText(QCoreApplication::translate("Nodes::QSysQrcInterface", "设计: —"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::QSysQrcInterface", "状态: —"));
 
             controlList->setSelectionMode(QAbstractItemView::SingleSelection);
             controlList->setMinimumHeight(200);
@@ -82,16 +83,16 @@ namespace Nodes
                 "  color: palette(text);"
                 "}"));
 
-            addRow(QStringLiteral("主机:"), hostEdit);
-            addRow(QStringLiteral("用户:"), userEdit);
+            addRow(QCoreApplication::translate("Nodes::QSysQrcInterface", "主机:"), hostEdit);
+            addRow(QCoreApplication::translate("Nodes::QSysQrcInterface", "用户:"), userEdit);
             addRow(QStringLiteral("PIN:"), pinEdit);
-            addRow(QStringLiteral("Named Controls XML:"), xmlSelector);
+            addRow(QCoreApplication::translate("Nodes::QSysQrcInterface", "命名控件 XML："), xmlSelector);
 
             layout->addWidget(connectButton);
             layout->addWidget(designLabel);
             layout->addWidget(statusLabel);
             layout->addWidget(new QLabel(
-                QStringLiteral("Named Controls（端口数随 XML 自动同步）:")));
+                QCoreApplication::translate("Nodes::QSysQrcInterface", "Named Controls（端口数随 XML 自动同步）:")));
             layout->addWidget(controlList, 1);
 
             setMinimumSize(360, 480);
@@ -102,8 +103,8 @@ namespace Nodes
             QSignalBlocker blocker(connectButton);
             connectButton->setChecked(connected);
             connectButton->setText(connected
-                                       ? QStringLiteral("已连接")
-                                       : QStringLiteral("未连接"));
+                                       ? QCoreApplication::translate("Nodes::QSysQrcInterface", "已连接")
+                                       : QCoreApplication::translate("Nodes::QSysQrcInterface", "未连接"));
             connectButton->setStyleSheet(connected
                                              ? QStringLiteral("color: green; font-weight: bold;")
                                              : QStringLiteral("color: red; font-weight: bold;"));

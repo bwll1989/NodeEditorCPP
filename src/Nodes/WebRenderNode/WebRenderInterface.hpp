@@ -15,6 +15,7 @@
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -33,13 +34,13 @@ public:
     explicit WebRenderInterface(QWidget* parent = nullptr)
         : QGroupBox(QStringLiteral("Web Render"), parent)
     {
-        m_activeCheck = new QCheckBox(QStringLiteral("Active"), this);
+        m_activeCheck = new QCheckBox(QCoreApplication::translate("Nodes::WebRenderInterface", "激活"), this);
         m_sourceCombo = new QComboBox(this);
-        m_sourceCombo->addItem(QStringLiteral("URL or File"), QStringLiteral("url"));
+        m_sourceCombo->addItem(QCoreApplication::translate("Nodes::WebRenderInterface", "URL 或文件"), QStringLiteral("url"));
         m_sourceCombo->addItem(QStringLiteral("HTML (DAT)"), QStringLiteral("html"));
 
         m_urlEdit = new QLineEdit(this);
-        m_urlEdit->setPlaceholderText(QStringLiteral("https://… 或 file:///…"));
+        m_urlEdit->setPlaceholderText(QCoreApplication::translate("Nodes::WebRenderInterface", "https://… 或 file:///…"));
         m_urlEdit->setText(QStringLiteral("https://example.com"));
 
         m_htmlEdit = new QPlainTextEdit(this);
@@ -71,17 +72,17 @@ public:
         m_dpiSpin->setSingleStep(0.25);
         m_dpiSpin->setValue(1.0);
 
-        m_updateWhenLoadedCheck = new QCheckBox(QStringLiteral("Only Update when Loaded"), this);
+        m_updateWhenLoadedCheck = new QCheckBox(QCoreApplication::translate("Nodes::WebRenderInterface", "仅加载后更新"), this);
         m_updateWhenLoadedCheck->setChecked(true);
-        m_autoRestartCheck = new QCheckBox(QStringLiteral("Restart if Process Died"), this);
+        m_autoRestartCheck = new QCheckBox(QCoreApplication::translate("Nodes::WebRenderInterface", "进程退出后重启"), this);
         m_autoRestartCheck->setChecked(true);
 
-        m_reloadBtn = new QPushButton(QStringLiteral("Reload"), this);
-        m_reloadBtn->setToolTip(QStringLiteral(
+        m_reloadBtn = new QPushButton(QCoreApplication::translate("Nodes::WebRenderInterface", "重新加载"), this);
+        m_reloadBtn->setToolTip(QCoreApplication::translate("Nodes::WebRenderInterface",
             "重新加载内容（按当前状态自动选择最轻量方式；进程异常时自动重启）\n"
             "按住 Shift 点击 = 重建浏览器实例"));
 
-        m_statusLabel = new QLabel(QStringLiteral("状态: 未启动"), this);
+        m_statusLabel = new QLabel(QCoreApplication::translate("Nodes::WebRenderInterface", "状态: 未启动"), this);
         m_statusLabel->setWordWrap(true);
         m_statusLabel->setStyleSheet(QStringLiteral("color: #c44; font-weight: bold;"));
 
@@ -93,12 +94,12 @@ public:
         auto* mainForm = new QFormLayout();
         mainForm->setContentsMargins(0, 0, 0, 0);
         mainForm->setSpacing(4);
-        mainForm->addRow(QStringLiteral("Source"), m_sourceCombo);
+        mainForm->addRow(QCoreApplication::translate("Nodes::WebRenderInterface", "来源"), m_sourceCombo);
         mainForm->addRow(QStringLiteral("URL"), m_urlEdit);
         mainForm->addRow(QStringLiteral("HTML"), m_htmlEdit);
-        mainForm->addRow(QStringLiteral("Resolution"), sizeRow);
-        mainForm->addRow(QStringLiteral("Max FPS"), m_fpsSpin);
-        mainForm->addRow(QStringLiteral("DPI Scale"), m_dpiSpin);
+        mainForm->addRow(QCoreApplication::translate("Nodes::WebRenderInterface", "分辨率"), sizeRow);
+        mainForm->addRow(QCoreApplication::translate("Nodes::WebRenderInterface", "最大帧率"), m_fpsSpin);
+        mainForm->addRow(QCoreApplication::translate("Nodes::WebRenderInterface", "DPI 缩放"), m_dpiSpin);
 
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(6, 8, 6, 6);

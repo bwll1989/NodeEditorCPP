@@ -15,6 +15,7 @@
 #include <QDateTime>
 #include <QCheckBox>
 #include <QDoubleSpinBox>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -72,14 +73,14 @@ namespace Nodes
          */
         void updateSendingStatus(bool sending) {
             if (sending) {
-                m_statusLabel->setText("状态: 正在发送");
+                m_statusLabel->setText(QCoreApplication::translate("Nodes::NDIOutInterface", "状态: 正在发送"));
                 m_statusLabel->setStyleSheet("color: green; font-weight: bold;");
-                m_startStopButton->setText("停止");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::NDIOutInterface", "停止"));
                 m_isSending = true;
             } else {
-                m_statusLabel->setText("状态: 已停止");
+                m_statusLabel->setText(QCoreApplication::translate("Nodes::NDIOutInterface", "状态: 已停止"));
                 m_statusLabel->setStyleSheet("color: red; font-weight: bold;");
-                m_startStopButton->setText("开始");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::NDIOutInterface", "开始"));
                 m_isSending = false;
             }
         }
@@ -89,7 +90,7 @@ namespace Nodes
          * @param error 错误信息
          */
         void showError(const QString& error) {
-            m_statusLabel->setText("错误: " + error);
+            m_statusLabel->setText(QCoreApplication::translate("Nodes::NDIOutInterface", "错误: ") + error);
             m_statusLabel->setStyleSheet("color: red; font-weight: bold;");
         }
 
@@ -119,19 +120,19 @@ namespace Nodes
          * @brief 创建发送器设置组
          */
         void createSenderGroup() {
-        m_senderGroup = new QGroupBox("发送器设置", this);
+        m_senderGroup = new QGroupBox(QCoreApplication::translate("Nodes::NDIOutInterface", "发送器设置"), this);
         QVBoxLayout *layout = new QVBoxLayout(m_senderGroup);
         auto *nameRow = new QWidget(m_senderGroup);
         auto *nameLayout = new QHBoxLayout(nameRow);
         nameLayout->setContentsMargins(0, 0, 0, 0);
         nameLayout->setSpacing(8);
-        QLabel *nameLabel = new QLabel("名称:", nameRow);
+        QLabel *nameLabel = new QLabel(QCoreApplication::translate("Nodes::NDIOutInterface", "名称:"), nameRow);
         m_senderNameEdit = new QLineEdit("NodeEditor NDI Output", nameRow);
         nameLayout->addWidget(nameLabel, 0);
         nameLayout->addWidget(m_senderNameEdit, 1);
-        m_startStopButton = new QPushButton("开始");
+        m_startStopButton = new QPushButton(QCoreApplication::translate("Nodes::NDIOutInterface", "开始"));
         m_startStopButton->setCheckable(true);
-        m_statusLabel = new QLabel("状态: 已停止");
+        m_statusLabel = new QLabel(QCoreApplication::translate("Nodes::NDIOutInterface", "状态: 已停止"));
 
         layout->addWidget(nameRow);
         layout->addWidget(m_startStopButton);

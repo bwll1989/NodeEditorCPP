@@ -72,7 +72,7 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
     // QLabel 脱管飘在 QGroupBox 左上角与标题重叠（用户报"媒体文件挤在一起"）。
     // 候选 = 媒体库对应分类的文件名列表（适配器按片段类型传分类）；当前
     // 绑定文件名灌入选择器显示。
-    auto* asset_box = new QGroupBox("媒体文件", this);
+    auto* asset_box = new QGroupBox(tr("媒体文件"), this);
     asset_box->setFlat(true); // 带文字的分割线（2026-11-13 用户定案：四区块统一去框）
     media_box_ = asset_box; // 存成员：Live 片段经 setMediaSectionVisible 隐藏
     auto* asset_lay = new QVBoxLayout(asset_box);
@@ -81,8 +81,8 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
     media_selector_ = new SelectorComboBox(media_category, asset_box);
     media_selector_->setObjectName("clipPickMedia"); // 测试定位锚（沿用原锚）
     media_selector_->setAllowCustomInput(false); // 绑定必须来自媒体库候选
-    media_selector_->setToolTip("从媒体库选择文件绑定到本片段"
-                                "（候选为媒体库当前分类下的文件）");
+    media_selector_->setToolTip(tr("从媒体库选择文件绑定到本片段"
+                                   "（候选为媒体库当前分类下的文件）"));
     if (!current_binding_name_.isEmpty())
         media_selector_->setCurrentValue(current_binding_name_);
     asset_lay->addWidget(media_selector_, /*stretch=*/1);
@@ -171,8 +171,8 @@ void ClipPropertyPanel::onMediaSelected(const QString& file_name) {
     const QString path = resolveLibraryPath(file_name);
     if (path.isEmpty()) {
         // 候选过期（媒体库刷新后文件被移除等）：提示并回显当前绑定
-        QMessageBox::warning(this, "指定媒体文件",
-                             QString("媒体库中未找到文件：%1").arg(file_name));
+        QMessageBox::warning(this, tr("指定媒体文件"),
+                             tr("媒体库中未找到文件：%1").arg(file_name));
         const QSignalBlocker bs(media_selector_);
         media_selector_->setCurrentValue(current_binding_name_);
         return;
@@ -180,8 +180,8 @@ void ClipPropertyPanel::onMediaSelected(const QString& file_name) {
     std::string err;
     Asset a = importer_(path, err);
     if (a.id.empty()) {
-        QMessageBox::warning(this, "指定媒体文件",
-                             QString("导入失败：%1")
+        QMessageBox::warning(this, tr("指定媒体文件"),
+                             tr("导入失败：%1")
                                  .arg(QString::fromStdString(err)));
         const QSignalBlocker bs(media_selector_);
         media_selector_->setCurrentValue(current_binding_name_);
@@ -229,7 +229,7 @@ void ClipPropertyPanel::refreshFrom(const Clip& c,
 // ---------------------------------------------------------------------------
 void ClipPropertyPanel::updateAssetLabel() {
     if (current_asset_id_.empty()) {
-        asset_label_->setText("（未绑定——从上方媒体库选择文件）");
+        asset_label_->setText(tr("（未绑定——从上方媒体库选择文件）"));
         asset_label_->setToolTip({});
         return;
     }

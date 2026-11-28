@@ -82,7 +82,8 @@ LicenseClientSdk::LicenseClientSdk()
         const bool complete = m_getMachineCode && m_generateRequest
                               && m_verifyTokenEmbedded && m_verifyLicenseEmbedded;
         if (!complete) {
-            m_status = QStringLiteral("licensingclient.dll 缺少必需导出函数（%1），请核对 SDK 版本")
+            m_status = QCoreApplication::translate("LicenseClientSdk",
+                           "licensingclient.dll 缺少必需导出函数（%1），请核对 SDK 版本")
                            .arg(QString::fromLatin1(candidate.toUtf8()));
             ::FreeLibrary(lib);
             m_lib = nullptr;
@@ -95,11 +96,13 @@ LicenseClientSdk::LicenseClientSdk()
         return;
     }
 
-    m_status = QStringLiteral("未找到 SDK 原生库 licensingclient.dll"
-                              "（需与 Flow.exe 同目录，或用环境变量 LICENSE_SDK_LIB 指定完整路径）。"
-                              "授权功能不可用。");
+    m_status = QCoreApplication::translate("LicenseClientSdk",
+                          "未找到 SDK 原生库 licensingclient.dll"
+                          "（需与 Flow.exe 同目录，或用环境变量 LICENSE_SDK_LIB 指定完整路径）。"
+                          "授权功能不可用。");
 #else
-    m_status = QStringLiteral("当前平台未实现 LicenseClient SDK 加载");
+    m_status = QCoreApplication::translate("LicenseClientSdk",
+                          "当前平台未实现 LicenseClient SDK 加载");
 #endif
 }
 
@@ -137,7 +140,7 @@ LicenseClientSdk::VerifyResult LicenseClientSdk::verifyToken(const QString& toke
     }
     const QByteArray utf8 = token.trimmed().toUtf8();
     if (utf8.isEmpty()) {
-        result.message = QStringLiteral("授权内容为空");
+        result.message = QCoreApplication::translate("LicenseClientSdk", "授权内容为空");
         return result;
     }
     std::vector<char> error(kErrorCapacity, 0);
@@ -145,7 +148,9 @@ LicenseClientSdk::VerifyResult LicenseClientSdk::verifyToken(const QString& toke
     result.valid = (rc == 0);
     result.message = QString::fromUtf8(error.data());
     if (result.message.isEmpty()) {
-        result.message = result.valid ? QStringLiteral("授权有效") : QStringLiteral("授权无效");
+        result.message = result.valid
+            ? QCoreApplication::translate("LicenseClientSdk", "授权有效")
+            : QCoreApplication::translate("LicenseClientSdk", "授权无效");
     }
     return result;
 }
@@ -163,7 +168,9 @@ LicenseClientSdk::VerifyResult LicenseClientSdk::verifyLicenseFile(const QString
     result.valid = (rc == 0);
     result.message = QString::fromUtf8(error.data());
     if (result.message.isEmpty()) {
-        result.message = result.valid ? QStringLiteral("授权有效") : QStringLiteral("授权无效");
+        result.message = result.valid
+            ? QCoreApplication::translate("LicenseClientSdk", "授权有效")
+            : QCoreApplication::translate("LicenseClientSdk", "授权无效");
     }
     return result;
 }
@@ -186,13 +193,16 @@ bool LicenseClientSdk::generateRequest(const QString& activationCode, const QStr
     if (error) {
         switch (rc) {
             case 2:
-                *error = QStringLiteral("生成激活请求失败：参数错误（请检查激活码与保存路径）");
+                *error = QCoreApplication::translate("LicenseClientSdk",
+                    "生成激活请求失败：参数错误（请检查激活码与保存路径）");
                 break;
             case -1:
-                *error = QStringLiteral("生成激活请求失败：SDK 内部异常");
+                *error = QCoreApplication::translate("LicenseClientSdk",
+                    "生成激活请求失败：SDK 内部异常");
                 break;
             default:
-                *error = QStringLiteral("生成激活请求失败（错误码 %1）").arg(rc);
+                *error = QCoreApplication::translate("LicenseClientSdk",
+                    "生成激活请求失败（错误码 %1）").arg(rc);
                 break;
         }
     }
@@ -210,11 +220,11 @@ QString LicenseClientSdk::checkClock() const
         case 0:
             return {};
         case 1:
-            return QStringLiteral("检测到系统时间回拨");
+            return QCoreApplication::translate("LicenseClientSdk", "检测到系统时间回拨");
         case 2:
-            return QStringLiteral("时钟存储不可用");
+            return QCoreApplication::translate("LicenseClientSdk", "时钟存储不可用");
         default:
-            return QStringLiteral("时钟检查异常");
+            return QCoreApplication::translate("LicenseClientSdk", "时钟检查异常");
     }
 }
 

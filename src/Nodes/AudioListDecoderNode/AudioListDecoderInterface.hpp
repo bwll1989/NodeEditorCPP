@@ -5,6 +5,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QPushButton>
 #include <QCheckBox>
@@ -49,17 +50,17 @@ namespace Nodes
             upButton->setText(QStringLiteral("↑"));
             upButton->setFixedSize(28, 28);
             upButton->setEnabled(canMoveUp);
-            upButton->setToolTip(QStringLiteral("上移"));
+            upButton->setToolTip(QCoreApplication::translate("Nodes::PlaylistTrackRowWidget", "上移"));
             upButton->setFocusPolicy(Qt::NoFocus);
 
             downButton->setText(QStringLiteral("↓"));
             downButton->setFixedSize(28, 28);
             downButton->setEnabled(canMoveDown);
-            downButton->setToolTip(QStringLiteral("下移"));
+            downButton->setToolTip(QCoreApplication::translate("Nodes::PlaylistTrackRowWidget", "下移"));
             downButton->setFocusPolicy(Qt::NoFocus);
 
             fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::Audio, this);
-            fileSelectComboBox->setPlaceholderText(QStringLiteral("选择音频…"));
+            fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::PlaylistTrackRowWidget", "选择音频…"));
             {
                 QSignalBlocker b(fileSelectComboBox);
                 if (!path.isEmpty()) {
@@ -73,7 +74,7 @@ namespace Nodes
             gainSlider->setSuffix(QStringLiteral(" dB"));
             gainSlider->setMinimumWidth(88);
             gainSlider->setMaximumWidth(110);
-            gainSlider->setToolTip(QStringLiteral("曲目增益"));
+            gainSlider->setToolTip(QCoreApplication::translate("Nodes::PlaylistTrackRowWidget", "曲目增益"));
             {
                 QSignalBlocker b(gainSlider);
                 gainSlider->setValue(gainDb);
@@ -81,7 +82,7 @@ namespace Nodes
 
             removeButton->setText(QStringLiteral("×"));
             removeButton->setFixedSize(28, 28);
-            removeButton->setToolTip(QStringLiteral("删除"));
+            removeButton->setToolTip(QCoreApplication::translate("Nodes::PlaylistTrackRowWidget", "删除"));
             removeButton->setFocusPolicy(Qt::NoFocus);
 
             layout->addWidget(upButton);
@@ -155,27 +156,27 @@ namespace Nodes
             indexSpinBox->setMinimum(0);
             indexSpinBox->setMaximum(0);
             indexSpinBox->setValue(0);
-            indexSpinBox->setToolTip(QStringLiteral("PLAY 将播放的列表序号；列表编辑与自动切曲不改变此值"));
+            indexSpinBox->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "PLAY 将播放的列表序号；列表编辑与自动切曲不改变此值"));
 
             playButton->setCheckable(true);
             playButton->setAutoExclusive(false);
-            playButton->setText(QStringLiteral("Play"));
-            playButton->setToolTip(QStringLiteral("勾选播放 / 取消停止（按当前 Index）"));
+            playButton->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "播放"));
+            playButton->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "勾选播放 / 取消停止（按当前 Index）"));
 
-            loopCheckBox->setText(QStringLiteral("单曲循环"));
+            loopCheckBox->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "单曲循环"));
             loopCheckBox->setChecked(false);
-            loopCheckBox->setToolTip(QStringLiteral("当前曲目循环（与列表循环互斥）"));
+            loopCheckBox->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "当前曲目循环（与列表循环互斥）"));
 
-            listLoopCheckBox->setText(QStringLiteral("列表循环"));
+            listLoopCheckBox->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "列表循环"));
             listLoopCheckBox->setChecked(false);
-            listLoopCheckBox->setToolTip(QStringLiteral("列表播完后从第一首继续（与单曲循环互斥）"));
+            listLoopCheckBox->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "列表播完后从第一首继续（与单曲循环互斥）"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "状态: —"));
 
-            addButton->setText(QStringLiteral("添加"));
-            addButton->setToolTip(QStringLiteral("在列表末尾新增一条空白曲目"));
+            addButton->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "添加"));
+            addButton->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "在列表末尾新增一条空白曲目"));
             addButton->setFixedHeight(24);
 
             addLabeledRow(QStringLiteral("Index:"), indexSpinBox);
@@ -197,7 +198,7 @@ namespace Nodes
             auto *listHeaderLayout = new QHBoxLayout(listHeader);
             listHeaderLayout->setContentsMargins(0, 0, 0, 0);
             listHeaderLayout->setSpacing(8);
-            listHeaderLayout->addWidget(new QLabel(QStringLiteral("播放列表:")));
+            listHeaderLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "播放列表:")));
             listHeaderLayout->addStretch(1);
             listHeaderLayout->addWidget(addButton);
             layout->addWidget(listHeader);
@@ -209,7 +210,7 @@ namespace Nodes
             playlistView->setEditTriggers(QAbstractItemView::NoEditTriggers);
             playlistView->setUniformItemSizes(false);
             playlistView->setSpacing(2);
-            playlistView->setToolTip(QStringLiteral("双击曲目播放（不改 Index）"));
+            playlistView->setToolTip(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "双击曲目播放（不改 Index）"));
             layout->addWidget(playlistView, 1);
 
             setMinimumSize(360, 420);
@@ -217,7 +218,7 @@ namespace Nodes
 
         void setStatusText(const QString &text)
         {
-            statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            statusLabel->setText(QCoreApplication::translate("Nodes::AudioListDecoderInterface", "状态: %1").arg(text));
         }
 
         void syncPlayButton(bool playing)
@@ -225,7 +226,9 @@ namespace Nodes
             QSignalBlocker b(playButton);
             playButton->setAutoExclusive(false);
             playButton->setChecked(playing);
-            playButton->setText(playing ? QStringLiteral("Stop") : QStringLiteral("Play"));
+            playButton->setText(playing
+                ? QCoreApplication::translate("Nodes::AudioListDecoderInterface", "停止")
+                : QCoreApplication::translate("Nodes::AudioListDecoderInterface", "播放"));
         }
 
         QSpinBox *indexSpinBox = new QSpinBox();

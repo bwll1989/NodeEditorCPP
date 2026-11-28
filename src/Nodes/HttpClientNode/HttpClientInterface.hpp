@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QLayout>
 #include <QPushButton>
@@ -31,15 +32,15 @@ namespace Nodes
             bodyEdit->setMaximumBlockCount(2000);
 
             int row = 0;
-            main_layout->addWidget(new QLabel(QStringLiteral("Base URL:")), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "基础 URL：")), row, 0);
             main_layout->addWidget(baseUrlEdit, row++, 1);
-            main_layout->addWidget(new QLabel(QStringLiteral("Method:")), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "方法：")), row, 0);
             main_layout->addWidget(method, row++, 1);
-            main_layout->addWidget(new QLabel(QStringLiteral("Path:")), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "路径：")), row, 0);
             main_layout->addWidget(pathEdit, row++, 1);
-            main_layout->addWidget(new QLabel(QStringLiteral("Headers:")), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "请求头：")), row, 0);
             main_layout->addWidget(headersEdit, row++, 1);
-            main_layout->addWidget(new QLabel(QStringLiteral("Body:")), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "请求体：")), row, 0);
             main_layout->addWidget(bodyEdit, row++, 1);
             main_layout->addWidget(statusLabel, row++, 0, 1, 2);
             main_layout->addWidget(sendButton, row++, 0, 1, 2);
@@ -59,7 +60,7 @@ namespace Nodes
         QLineEdit *pathEdit = new QLineEdit();
         QLineEdit *headersEdit = new QLineEdit();
         QPlainTextEdit *bodyEdit = new QPlainTextEdit();
-        QLabel *statusLabel = new QLabel(QStringLiteral("Ready"));
-        QPushButton *sendButton = new QPushButton(QStringLiteral("Send"));
+        QLabel *statusLabel = new QLabel(QCoreApplication::translate("Nodes::HttpClientInterface", "就绪"));
+        QPushButton *sendButton = new QPushButton(QCoreApplication::translate("Nodes::HttpClientInterface", "发送"));
     };
 }

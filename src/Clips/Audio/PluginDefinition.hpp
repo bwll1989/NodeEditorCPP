@@ -35,7 +35,7 @@ public:
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表下放；Audio 无专属区，本名
     /// 暂不显示但声明齐备——插件声明面向未来页面）
-    QString clipDisplayName() const override { return QStringLiteral("音频"); }
+    QString clipDisplayName() const override { return tr("音频"); }
 
     // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----
     /// 音频片段动画页只暴露音频增益（用户定案：画布变换/合成域属性对纯

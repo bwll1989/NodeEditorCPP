@@ -14,6 +14,7 @@
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 ///
@@ -65,12 +66,12 @@ namespace Nodes
         // 修正后的成员变量
         QGridLayout *main_layout;  // 统一使用网格布局
         SelectorComboBox *fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::Video,this);
-        QPushButton *playButton=new QPushButton("Play");
+        QPushButton *playButton=new QPushButton(QCoreApplication::translate("Nodes::VideoDecoderInterface", "播放"));
         // QPushButton *stopButton=new QPushButton("Stop");
         QSlider *progressSlider = new QSlider(this);
         QLabel *timeLabel = new QLabel(this);
         FloatDragValueWidget *volumeSlider = new FloatDragValueWidget(this);
-        QCheckBox *loopCheckBox = new QCheckBox("Loop");
+        QCheckBox *loopCheckBox = new QCheckBox(QCoreApplication::translate("Nodes::VideoDecoderInterface", "循环"));
 
     };
 }

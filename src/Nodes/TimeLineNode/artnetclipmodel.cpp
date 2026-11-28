@@ -2,6 +2,7 @@
 #include <QImage>
 #include <QDebug>
 #include <QSignalBlocker>
+#include <QCoreApplication>
 #include "TimelineEngine.h"
 // 本文件解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
 // 库头自前置声明化后不再传递提供，必须显式 include。
@@ -97,11 +98,13 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
     mainLayout->setContentsMargins(5, 5, 5, 5);
     mainLayout->setSpacing(4);
     // 基本设置组
-    auto* basicGroup = new QGroupBox("文件属性", m_editor);
+    // 【i18n】Clips 命名空间类：moc context 带命名空间，裸 tr() 查 .qm 会 MISS，
+    // 统一显式 QCoreApplication::translate（context=Clips::ArtnetClipModel）。
+    auto* basicGroup = new QGroupBox(QCoreApplication::translate("Clips::ArtnetClipModel", "文件属性"), m_editor);
     auto* basicLayout = new QGridLayout(basicGroup);
     // 文件名显示
     // 媒体文件选择
-    basicLayout->addWidget(new QLabel("回放起始域:"), 1, 0,1,1);
+    basicLayout->addWidget(new QLabel(QCoreApplication::translate("Clips::ArtnetClipModel", "回放起始域:"), basicGroup), 1, 0,1,1);
     // 函数级注释：使用成员指针持有起始域控件，便于 currentData 读取
     m_startUniverse = new QSpinBox(basicGroup);
     m_startUniverse->setMinimum(0);
@@ -111,17 +114,17 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
     connect(m_startUniverse, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &ArtnetClipModel::onUniverseChanged);
 
-    basicLayout->addWidget(new QLabel("目标主机:"), 3, 0,1,1);
+    basicLayout->addWidget(new QLabel(QCoreApplication::translate("Clips::ArtnetClipModel", "目标主机:"), basicGroup), 3, 0,1,1);
     targetHostEdit = new QLineEdit(basicGroup);
     targetHostEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")));
-    targetHostEdit->setToolTip("输入目标主机IP地址，如：192.168.1.100 或 192.168.1.255（广播）");
+    targetHostEdit->setToolTip(QCoreApplication::translate("Clips::ArtnetClipModel", "输入目标主机IP地址，如：192.168.1.100 或 192.168.1.255（广播）"));
     NodeClipDelegateModel::registerExternalControl("/host", targetHostEdit);
     // 设置默认值
     targetHostEdit->setText(m_targetHost);
     basicLayout->addWidget(targetHostEdit, 3, 1,1,1);
     connect(targetHostEdit,&QLineEdit::textChanged,
             this, &ArtnetClipModel::onHostChanged);
-    basicLayout->addWidget(new QLabel("Artnet数据:"), 2, 0,1,1);
+    basicLayout->addWidget(new QLabel(QCoreApplication::translate("Clips::ArtnetClipModel", "Artnet数据:"), basicGroup), 2, 0,1,1);
     mediaSelector = new SelectorComboBox(MediaLibrary::Category::DMX,basicGroup);
     NodeClipDelegateModel::registerExternalControl("/file", mediaSelector);
     basicLayout->addWidget(mediaSelector, 2, 1,1,1);

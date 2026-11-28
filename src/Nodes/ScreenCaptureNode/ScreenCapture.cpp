@@ -29,6 +29,7 @@
 #include <cstring>
 #include <mutex>
 #include <utility>
+#include <QCoreApplication>
 
 namespace {
 
@@ -158,7 +159,7 @@ BOOL CALLBACK enumMonitorProc(HMONITOR monitor, HDC, LPRECT, LPARAM param)
                        .arg(info.rcMonitor.left)
                        .arg(info.rcMonitor.top);
     if (primary) {
-        source.label += QStringLiteral("  主屏");
+        source.label += QCoreApplication::translate("ScreenCaptureThread", "  主屏");
         ctx->list->prepend(source);
     } else {
         ctx->list->append(source);
@@ -390,7 +391,7 @@ struct ScreenCaptureThread::WgcImpl {
             monitor = MonitorFromWindow(reinterpret_cast<HWND>(source.nativeHandle), MONITOR_DEFAULTTONEAREST);
         }
         if (!monitor) {
-            error = QStringLiteral("无法确定捕获源所在的显示器");
+            error = QCoreApplication::translate("ScreenCaptureThread", "无法确定捕获源所在的显示器");
             return false;
         }
 
@@ -404,7 +405,7 @@ struct ScreenCaptureThread::WgcImpl {
         } else {
             auto* hwnd = reinterpret_cast<HWND>(source.nativeHandle);
             if (!IsWindow(hwnd)) {
-                error = QStringLiteral("窗口已关闭");
+                error = QCoreApplication::translate("ScreenCaptureThread", "窗口已关闭");
                 return false;
             }
             winrt::check_hresult(factory->CreateForWindow(hwnd, iid, reinterpret_cast<void**>(winrt::put_abi(item))));
@@ -412,7 +413,7 @@ struct ScreenCaptureThread::WgcImpl {
 
         poolSize = item.Size();
         if (poolSize.Width <= 0 || poolSize.Height <= 0) {
-            error = QStringLiteral("捕获源尺寸无效");
+            error = QCoreApplication::translate("ScreenCaptureThread", "捕获源尺寸无效");
             return false;
         }
 
@@ -439,7 +440,7 @@ struct ScreenCaptureThread::WgcImpl {
         });
         closedToken = item.Closed([this](wgc::GraphicsCaptureItem const&, winrt::Windows::Foundation::IInspectable const&) {
             if (owner && !owner->m_abort.exchange(true)) {
-                emit owner->errorOccurred(QStringLiteral("捕获源已关闭"));
+                emit owner->errorOccurred(QCoreApplication::translate("ScreenCaptureThread", "捕获源已关闭"));
             }
         });
         session.StartCapture();
@@ -616,7 +617,7 @@ QList<ScreenSource> ScreenCaptureThread::listDisplays()
     MonitorEnumContext ctx{&list, 0};
     EnumDisplayMonitors(nullptr, nullptr, enumMonitorProc, reinterpret_cast<LPARAM>(&ctx));
     for (int i = 0; i < list.size(); ++i) {
-        list[i].label = QStringLiteral("显示器 %1  ").arg(i + 1) + list[i].label;
+        list[i].label = QCoreApplication::translate("ScreenCaptureThread", "显示器 %1  ").arg(i + 1) + list[i].label;
     }
     return list;
 }
@@ -724,7 +725,7 @@ bool ScreenCaptureThread::startWgc(const ScreenSource& source, bool captureCurso
 {
     stopWgc();
     if (!winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported()) {
-        error = QStringLiteral("系统不支持 Windows Graphics Capture");
+        error = QCoreApplication::translate("ScreenCaptureThread", "系统不支持 Windows Graphics Capture");
         return false;
     }
     try {
@@ -759,14 +760,14 @@ void ScreenCaptureThread::fallbackLoop(const ScreenSource& source)
         if (source.kind == ScreenSource::Kind::Window) {
             auto* hwnd = reinterpret_cast<HWND>(source.nativeHandle);
             if (!IsWindow(hwnd)) {
-                emit errorOccurred(QStringLiteral("窗口已关闭"));
+                emit errorOccurred(QCoreApplication::translate("ScreenCaptureThread", "窗口已关闭"));
                 break;
             }
             ok = captureWindowBitBlt(hwnd, frame);
         } else {
             RECT rect{};
             if (!monitorRect(reinterpret_cast<HMONITOR>(source.nativeHandle), rect)) {
-                emit errorOccurred(QStringLiteral("显示器无效"));
+                emit errorOccurred(QCoreApplication::translate("ScreenCaptureThread", "显示器无效"));
                 break;
             }
             ok = captureScreenRect(rect, frame);
@@ -795,7 +796,7 @@ void ScreenCaptureThread::run()
         captureCursor = m_captureCursor.load();
     }
     if (!resolve(source)) {
-        emit errorOccurred(QStringLiteral("找不到捕获源"));
+        emit errorOccurred(QCoreApplication::translate("ScreenCaptureThread", "找不到捕获源"));
         emit captureStateChanged(false, QString());
         return;
     }

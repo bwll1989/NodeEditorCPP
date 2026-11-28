@@ -1145,14 +1145,22 @@ std::string StaticRequestHandler::guessContentType(const std::string& ext) {
 
 std::string StaticRequestHandler::builtInIndexHtml() {
     std::ostringstream ss;
+    // 【i18n】StaticRequestHandler 非 QObject 派生，走 QCoreApplication::translate；
+    // HTML 骨架不动，仅正文两段用户可见句子走翻译（context=HttpServer）
     ss <<
         "<!doctype html><html><head><meta charset='utf-8'/>"
         "<title>FLOW HTTP Server</title>"
         "<style>body{font-family:Segoe UI,Arial; margin:40px;}h1{color:#2b6cb0;}code{background:#f6f8fa;padding:2px 4px;border-radius:4px;}</style>"
         "</head><body>"
         "<h1>FLOW HTTP Server</h1>"
-        "<p>服务器正在运行。你可以将静态文件放在文档根目录并通过浏览器访问。</p>"
-        "<p>默认首页由内置内容提供。如需自定义，请在文档根目录创建 <code>index.html</code>。</p>"
+        "<p>"
+        << QCoreApplication::translate("HttpServer",
+            "服务器正在运行。你可以将静态文件放在文档根目录并通过浏览器访问。").toStdString()
+        << "</p>"
+        "<p>"
+        << QCoreApplication::translate("HttpServer",
+            "默认首页由内置内容提供。如需自定义，请在文档根目录创建 <code>index.html</code>。").toStdString()
+        << "</p>"
         "</body></html>";
     return ss.str();
 }

@@ -26,6 +26,7 @@
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
 #include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -41,7 +42,7 @@ public:
         layout->setSpacing(4);
 
         // 文件行
-        fileSelectComboBox->setPlaceholderText(QStringLiteral("Select .gdtf from Media Library"));
+        fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::GDTFInterface", "从媒体库选择 .gdtf"));
         layout->addWidget(fileSelectComboBox);
 
         // 起始地址 + DMX 模式（同一行）
@@ -50,23 +51,23 @@ public:
         startAddressSpin->setRange(1, 512);
         startAddressSpin->setValue(1);
         startAddressSpin->setToolTip(
-            QStringLiteral("DMX 起始地址（1-512）；后续断点按前断点占用顺序接续"));
-        addrRow->addWidget(new QLabel(QStringLiteral("起始"), this));
+            QCoreApplication::translate("Nodes::GDTFInterface", "DMX 起始地址（1-512）；后续断点按前断点占用顺序接续"));
+        addrRow->addWidget(new QLabel(QCoreApplication::translate("Nodes::GDTFInterface", "起始"), this));
         addrRow->addWidget(startAddressSpin);
         addrRow->addWidget(rangeLabel);
         addrRow->addSpacing(8);
-        addrRow->addWidget(new QLabel(QStringLiteral("模式"), this));
+        addrRow->addWidget(new QLabel(QCoreApplication::translate("Nodes::GDTFInterface", "模式"), this));
         addrRow->addWidget(modeCombo, 1);
         layout->addLayout(addrRow);
 
         // 设备图片（zip 内 thumbnail.png，放大显示在映射信息区）
         thumbnailLabel->setMinimumHeight(140);
         thumbnailLabel->setAlignment(Qt::AlignCenter);
-        thumbnailLabel->setText(QStringLiteral("No Thumbnail"));
+        thumbnailLabel->setText(QCoreApplication::translate("Nodes::GDTFInterface", "无缩略图"));
         layout->addWidget(thumbnailLabel, 1);
 
         // 通道值控制区（按映射结果自动生成，每物理地址一个拖动控件）
-        controlGroup->setTitle(QStringLiteral("通道控制"));
+        controlGroup->setTitle(QCoreApplication::translate("Nodes::GDTFInterface", "通道控制"));
         auto *cgLayout = new QVBoxLayout(controlGroup);
         cgLayout->setContentsMargins(0, 2, 0, 2);
         controlScroll->setWidget(controlInner);
@@ -123,7 +124,7 @@ public:
             auto *slider = new IntDragValueWidget(rowWidget);
             slider->setRange(0, 255);
             slider->setValue(defaults[i]);
-            slider->setToolTip(QStringLiteral("DMX 地址 %1").arg(addresses[i]));
+            slider->setToolTip(QCoreApplication::translate("Nodes::GDTFInterface", "DMX 地址 %1").arg(addresses[i]));
 
             rowLayout->addWidget(lab);
             rowLayout->addWidget(slider, 1);

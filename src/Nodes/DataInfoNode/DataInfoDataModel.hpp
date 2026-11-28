@@ -6,6 +6,7 @@
 #include <iostream>
 #include <QDockWidget>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 #include <QtCore/qglobal.h>
 // #include "DockManager.h"
 // #include "DockHub/DockHub.hpp"
@@ -35,7 +36,7 @@ namespace Nodes
             Resizable = false;
             WidgetEmbeddable = true;
             Resizable = false;
-            viewButton=new QPushButton("View");
+            viewButton=new QPushButton(QCoreApplication::translate("Nodes::DataInfoDataModel", "查看"));
             // 【2026-11-26】QWidget 版数据浏览器（替代 QML 版，去 Quick 依赖）
             browserWidget = new DataBrowserWidget();
             browserWidget->setLazyLoadingEnabled(true);
@@ -104,7 +105,7 @@ namespace Nodes
             browserWidget->setParent(nullptr);
 
             // 设置为独立窗口
-            browserWidget->setWindowTitle("Data Info");
+            browserWidget->setWindowTitle(QCoreApplication::translate("Nodes::DataInfoDataModel", "数据信息"));
 
             // 设置窗口图标
             browserWidget->setWindowIcon(QIcon(":/icons/icons/info.png"));

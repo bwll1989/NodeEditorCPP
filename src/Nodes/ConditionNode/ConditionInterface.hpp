@@ -8,6 +8,7 @@
 #include "QLayout"
 #include "QPushButton"
 #include "QLineEdit"
+#include <QCoreApplication>
 
 using namespace std;
 using namespace NodeDataTypes;
@@ -18,7 +19,7 @@ namespace Nodes
         explicit ConditionInterface(QWidget *parent = nullptr){
             main_layout->setContentsMargins(0,0,0,0);
             this->setLayout(main_layout);
-            Editor->setPlaceholderText(QStringLiteral("JS Expression (e.g., \"$input['key']\")"));
+            Editor->setPlaceholderText(QCoreApplication::translate("Nodes::ConditionInterface", "JS 表达式（如 \"$input['key']\"）"));
             main_layout->addWidget(Editor);
 
         }

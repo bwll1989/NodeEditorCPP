@@ -18,6 +18,7 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -60,7 +61,7 @@ namespace Nodes
             m_deleteBtn->setFlat(true);
             m_deleteBtn->setFocusPolicy(Qt::NoFocus);
             m_deleteBtn->setCursor(Qt::PointingHandCursor);
-            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            m_deleteBtn->setToolTip(QCoreApplication::translate("Nodes::DelayRuleRow", "删除"));
             connect(m_deleteBtn, &QPushButton::clicked, this, &DelayRuleRow::deleteRequested);
 
             m_timeEdit = new IntDragValueWidget(this);
@@ -70,7 +71,7 @@ namespace Nodes
             m_timeEdit->setMaximumHeight(inner);
             m_timeEdit->setFixedHeight(inner);
             m_timeEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-            m_timeEdit->setToolTip(QStringLiteral("相对 TRIGGER 的延迟毫秒（拖动调节）"));
+            m_timeEdit->setToolTip(QCoreApplication::translate("Nodes::DelayRuleRow", "相对 TRIGGER 的延迟毫秒（拖动调节）"));
             connect(m_timeEdit, &IntDragValueWidget::valueChanged,
                     this, &DelayRuleRow::timeChanged);
 
@@ -120,19 +121,19 @@ namespace Nodes
             m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
             m_addButton->setIconSize(QSize(14, 14));
             m_addButton->setFlat(true);
-            m_addButton->setToolTip(QStringLiteral("添加输出延迟行"));
+            m_addButton->setToolTip(QCoreApplication::translate("Nodes::DelayInterface", "添加输出延迟行"));
             connect(m_addButton, &QPushButton::clicked, this, &DelayInterface::onAddClicked);
 
-            m_ignoreRepeatCheckBox = new QCheckBox(QStringLiteral("忽略重复"), this);
+            m_ignoreRepeatCheckBox = new QCheckBox(QCoreApplication::translate("Nodes::DelayInterface", "忽略重复"), this);
             m_ignoreRepeatCheckBox->setChecked(true);
             m_ignoreRepeatCheckBox->setToolTip(
-                QStringLiteral("选中：保持期间忽略新信号\n取消：立即停止当前保持并处理新信号"));
+                QCoreApplication::translate("Nodes::DelayInterface", "选中：保持期间忽略新信号\n取消：立即停止当前保持并处理新信号"));
 
             m_progressBar = new QProgressBar(this);
             m_progressBar->setRange(0, 100);
             m_progressBar->setValue(0);
             m_progressBar->setTextVisible(true);
-            m_progressBar->setFormat(QStringLiteral("空闲"));
+            m_progressBar->setFormat(QCoreApplication::translate("Nodes::DelayInterface", "空闲"));
             m_progressBar->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
             auto *left = new QVBoxLayout();
@@ -272,7 +273,7 @@ namespace Nodes
                 return;
             }
             m_progressBar->setValue(0);
-            m_progressBar->setFormat(QStringLiteral("空闲"));
+            m_progressBar->setFormat(QCoreApplication::translate("Nodes::DelayInterface", "空闲"));
         }
 
         void setProgressStatus(const QString &text, int percent = 0)

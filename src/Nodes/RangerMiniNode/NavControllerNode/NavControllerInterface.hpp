@@ -14,6 +14,7 @@
 
 #include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include "qcustomplot.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -110,7 +111,7 @@ namespace Nodes
             wheelbaseSpin->setSuffix(QStringLiteral(" m"));
             wheelbaseSpin->setValue(0.494);
 
-            pathPreviewButton->setText(QStringLiteral("路径预览…"));
+            pathPreviewButton->setText(QCoreApplication::translate("Nodes::NavControllerInterface", "路径预览…"));
             connect(pathPreviewButton, &QPushButton::clicked, this, &NavControllerInterface::showPathPreview);
 
             int row = 0;
@@ -143,7 +144,7 @@ namespace Nodes
             mainLayout->addWidget(statusLabel, row++, 0, 1, 2);
 
             statusLabel->setWordWrap(true);
-            statusLabel->setText(QStringLiteral("状态：空闲"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::NavControllerInterface", "状态：空闲"));
             setLayout(mainLayout);
         }
 
@@ -221,7 +222,7 @@ namespace Nodes
         FloatDragValueWidget *kpSteerSpin = new FloatDragValueWidget();
         /// 成对镜像 (y,yaw)→(-y,-yaw)：Aurora +Y右 ↔ Ranger +Y左 / 左转为正
         QCheckBox *mirrorFrameCheck = new QCheckBox(
-            QStringLiteral("镜像坐标系（Y 与偏航同时取反）"));
+            QCoreApplication::translate("Nodes::NavControllerInterface", "镜像坐标系（Y 与偏航同时取反）"));
         QPushButton *pathPreviewButton = new QPushButton();
         QLabel *statusLabel = new QLabel();
 
@@ -248,7 +249,7 @@ namespace Nodes
             // 必须无父窗口：节点面板在 QGraphicsProxyWidget 内，
             // 若 parent=window()/this，弹窗会被嵌进节点图而不是系统独立窗。
             m_pathDialog = new QDialog(nullptr);
-            m_pathDialog->setWindowTitle(QStringLiteral("Nav 路径预览"));
+            m_pathDialog->setWindowTitle(QCoreApplication::translate("Nodes::NavControllerInterface", "Nav 路径预览"));
             m_pathDialog->setWindowFlags(Qt::Window
                                          | Qt::WindowTitleHint
                                          | Qt::WindowSystemMenuHint
@@ -265,7 +266,7 @@ namespace Nodes
             auto *lay = new QVBoxLayout(m_pathDialog);
             lay->setContentsMargins(8, 8, 8, 8);
             auto *hint = new QLabel(
-                QStringLiteral("蓝=前进　橙=倒车　红=当前　绿=目标　可拖拽/滚轮缩放"),
+                QCoreApplication::translate("Nodes::NavControllerInterface", "蓝=前进　橙=倒车　红=当前　绿=目标　可拖拽/滚轮缩放"),
                 m_pathDialog);
             hint->setWordWrap(true);
             lay->addWidget(hint);
@@ -285,15 +286,15 @@ namespace Nodes
             pathPlot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);
 
             m_fwdGraph = pathPlot->addGraph();
-            m_fwdGraph->setName(QStringLiteral("前进"));
+            m_fwdGraph->setName(QCoreApplication::translate("Nodes::NavControllerInterface", "前进"));
             m_fwdGraph->setPen(QPen(QColor(30, 120, 220), 2));
 
             m_revGraph = pathPlot->addGraph();
-            m_revGraph->setName(QStringLiteral("倒车"));
+            m_revGraph->setName(QCoreApplication::translate("Nodes::NavControllerInterface", "倒车"));
             m_revGraph->setPen(QPen(QColor(230, 120, 20), 2, Qt::DashLine));
 
             m_poseGraph = pathPlot->addGraph();
-            m_poseGraph->setName(QStringLiteral("当前"));
+            m_poseGraph->setName(QCoreApplication::translate("Nodes::NavControllerInterface", "当前"));
             m_poseGraph->setLineStyle(QCPGraph::lsNone);
             m_poseGraph->setScatterStyle(
                 QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(220, 40, 40), Qt::white, 9));
@@ -305,7 +306,7 @@ namespace Nodes
             m_poseYawArrow->setTail(QCPLineEnding(QCPLineEnding::esNone));
 
             m_goalGraph = pathPlot->addGraph();
-            m_goalGraph->setName(QStringLiteral("目标"));
+            m_goalGraph->setName(QCoreApplication::translate("Nodes::NavControllerInterface", "目标"));
             m_goalGraph->setLineStyle(QCPGraph::lsNone);
             m_goalGraph->setScatterStyle(
                 QCPScatterStyle(QCPScatterStyle::ssSquare, QColor(40, 160, 70), Qt::white, 9));
@@ -416,18 +417,18 @@ namespace Nodes
             pathPlot->yAxis->setRange(cy - 0.5 * span, cy + 0.5 * span);
         }
 
-        QLabel *goalXLabel = new QLabel(QStringLiteral("目标 X"));
-        QLabel *goalYLabel = new QLabel(QStringLiteral("目标 Y"));
-        QLabel *goalYawLabel = new QLabel(QStringLiteral("目标航向"));
-        QLabel *yawTolLabel = new QLabel(QStringLiteral("航向容差"));
-        QLabel *lookAheadLabel = new QLabel(QStringLiteral("预瞄距离"));
-        QLabel *maxVxLabel = new QLabel(QStringLiteral("最大线速度"));
-        QLabel *maxSteerLabel = new QLabel(QStringLiteral("最大转角"));
-        QLabel *arriveLabel = new QLabel(QStringLiteral("到达距离"));
-        QLabel *arriveHystLabel = new QLabel(QStringLiteral("到点滞回"));
-        QLabel *slowDistLabel = new QLabel(QStringLiteral("减速距离"));
-        QLabel *wheelbaseLabel = new QLabel(QStringLiteral("轴距 L"));
-        QLabel *kpSteerLabel = new QLabel(QStringLiteral("航向增益 Kp"));
+        QLabel *goalXLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "目标 X"));
+        QLabel *goalYLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "目标 Y"));
+        QLabel *goalYawLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "目标航向"));
+        QLabel *yawTolLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "航向容差"));
+        QLabel *lookAheadLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "预瞄距离"));
+        QLabel *maxVxLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "最大线速度"));
+        QLabel *maxSteerLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "最大转角"));
+        QLabel *arriveLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "到达距离"));
+        QLabel *arriveHystLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "到点滞回"));
+        QLabel *slowDistLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "减速距离"));
+        QLabel *wheelbaseLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "轴距 L"));
+        QLabel *kpSteerLabel = new QLabel(QCoreApplication::translate("Nodes::NavControllerInterface", "航向增益 Kp"));
 
         QPointer<QDialog> m_pathDialog;
         QCustomPlot *pathPlot = nullptr;

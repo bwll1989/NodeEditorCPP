@@ -61,6 +61,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <QCoreApplication>
 #endif
 
 using QtNodes::NodeData;
@@ -464,9 +465,9 @@ private Q_SLOTS:
     void saveStateNow()
     {
         if (submitCommand(Cmd::Save)) {
-            setStatus(QStringLiteral("状态: 存档点已保存到磁盘"), true);
+            setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 存档点已保存到磁盘"), true);
         } else {
-            setStatus(QStringLiteral("状态: 存档点保存失败（磁盘写入）"), false);
+            setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 存档点保存失败（磁盘写入）"), false);
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -475,9 +476,9 @@ private Q_SLOTS:
     void loadStateNow()
     {
         if (submitCommand(Cmd::Load)) {
-            setStatus(QStringLiteral("状态: 存档点已恢复"), true);
+            setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 存档点已恢复"), true);
         } else {
-            setStatus(QStringLiteral("状态: 存档点恢复失败（无存档文件，先 Save）"), false);
+            setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 存档点恢复失败（无存档文件，先 Save）"), false);
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -591,7 +592,7 @@ private:
         const QString core = QCoreApplication::applicationDirPath()
             + QStringLiteral("/mgba_libretro.dll");
         if (!QFileInfo::exists(core)) {
-            failStart(QStringLiteral("Core DLL 不存在: %1").arg(core));
+            failStart(QCoreApplication::translate("Nodes::LibretroDataModel", "Core DLL 不存在: %1").arg(core));
             return;
         }
 
@@ -599,7 +600,7 @@ private:
         // core 经 retro_game_info.data 使用，演出中源文件变动不影响运行）
         const QString rom = resolveRomSource();
         if (rom.isEmpty()) {
-            failStart(QStringLiteral("媒体库中未找到 ROM: %1").arg(m_romName));
+            failStart(QCoreApplication::translate("Nodes::LibretroDataModel", "媒体库中未找到 ROM: %1").arg(m_romName));
             return;
         }
         m_romPath = rom;
@@ -608,7 +609,7 @@ private:
         {
             QFile f(rom);
             if (!f.open(QIODevice::ReadOnly)) {
-                failStart(QStringLiteral("ROM 读取失败: %1").arg(rom));
+                failStart(QCoreApplication::translate("Nodes::LibretroDataModel", "ROM 读取失败: %1").arg(rom));
                 return;
             }
             m_romData = f.readAll();
@@ -620,7 +621,7 @@ private:
 
         std::string err;
         if (!m_core.load(core.toStdWString(), err)) {
-            failStart(QStringLiteral("Core 加载失败: %1").arg(QString::fromStdString(err)));
+            failStart(QCoreApplication::translate("Nodes::LibretroDataModel", "Core 加载失败: %1").arg(QString::fromStdString(err)));
             return;
         }
         m_core.setSystemDirectory(sysDir.toUtf8().constData());
@@ -641,7 +642,7 @@ private:
         if (!m_core.loadGame(rom.toUtf8().constData(), m_romData.constData(),
                              size_t(m_romData.size()), err)) {
             m_core.unload();
-            failStart(QStringLiteral("ROM 加载失败: %1").arg(QString::fromStdString(err)));
+            failStart(QCoreApplication::translate("Nodes::LibretroDataModel", "ROM 加载失败: %1").arg(QString::fromStdString(err)));
             return;
         }
 
@@ -674,7 +675,7 @@ private:
                  QString::fromStdString(m_core.libraryVersion()))
             .arg(m_core.baseWidth()).arg(m_core.baseHeight())
             .arg(m_core.fps(), 0, 'f', 2).arg(m_srcRate, 0, 'f', 0);
-        setStatus(QStringLiteral("状态: 模拟运行中（%1）").arg(info), true);
+        setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 模拟运行中（%1）").arg(info), true);
         m_infoTimer.start();
     }
 
@@ -713,7 +714,7 @@ private:
             m_fifoPrimed = false;
             m_readPos = 0.0;
         }
-        setStatus(QStringLiteral("状态: 未启动"), false);
+        setStatus(QCoreApplication::translate("Nodes::LibretroDataModel", "状态: 未启动"), false);
         m_infoTimer.stop();
     }
 

@@ -79,7 +79,7 @@ private:
     QColor m_playheadColor = Qt::white;
 
     std::shared_ptr<AudioWaveformPeaks> m_peaks;
-    QString m_placeholderText = QStringLiteral("请先选择音频文件");
+    QString m_placeholderText = tr("请先选择音频文件");
     double m_playheadSec = -1.0;
     double m_durationSec = 0.0;     // peaks 未就绪时的兜底总时长
     QString m_cachedTimeText;

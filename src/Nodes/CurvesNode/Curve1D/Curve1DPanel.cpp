@@ -2,6 +2,7 @@
 
 #include "Curve1DDataModel.hpp"
 
+#include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
@@ -39,17 +40,17 @@ namespace Nodes
         layout->addWidget(m_progressSlider);
 
         auto* controlRow = new QHBoxLayout();
-        m_playButton = new QPushButton(QStringLiteral("启动"), this);
+        m_playButton = new QPushButton(QCoreApplication::translate("Nodes::Curve1DPanel", "启动"), this);
         m_playButton->setCheckable(true);
         controlRow->addWidget(m_playButton);
-        m_loopBox = new QCheckBox(QStringLiteral("循环"), this);
+        m_loopBox = new QCheckBox(QCoreApplication::translate("Nodes::Curve1DPanel", "循环"), this);
         controlRow->addWidget(m_loopBox);
         controlRow->addStretch();
         layout->addLayout(controlRow);
 
         auto* editRow = new QHBoxLayout();
-        auto* editButton = new QPushButton(QStringLiteral("编辑曲线"), this);
-        editButton->setToolTip(QStringLiteral("打开一维曲线编辑窗口"));
+        auto* editButton = new QPushButton(QCoreApplication::translate("Nodes::Curve1DPanel", "编辑曲线"), this);
+        editButton->setToolTip(QCoreApplication::translate("Nodes::Curve1DPanel", "打开一维曲线编辑窗口"));
         editRow->addWidget(editButton, 1);
         layout->addLayout(editRow);
 
@@ -61,7 +62,7 @@ namespace Nodes
         connect(m_model, &Curve1DDataModel::playChanged, this, [this](bool playing) {
             const QSignalBlocker blocker(m_playButton);
             m_playButton->setChecked(playing);
-            m_playButton->setText(playing ? QStringLiteral("停止") : QStringLiteral("启动"));
+            m_playButton->setText(playing ? QCoreApplication::translate("Nodes::Curve1DPanel", "停止") : QCoreApplication::translate("Nodes::Curve1DPanel", "启动"));
         });
 
         // 模型循环态变化 → 循环复选框（load / OSC / 弹窗复选框改动）

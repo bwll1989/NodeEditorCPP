@@ -55,8 +55,8 @@ void OSCMessageItemWidget::setupUI()
     row->addWidget(typeCombo);
 
     valueEdit = new QLineEdit(this);
-    valueEdit->setPlaceholderText("value 或 [0.1,0.2,0.3]");
-    valueEdit->setToolTip("value 或 [0.1,0.2,0.3]");
+    valueEdit->setPlaceholderText(tr("value 或 [0.1,0.2,0.3]"));
+    valueEdit->setToolTip(tr("value 或 [0.1,0.2,0.3]"));
     valueEdit->setMinimumWidth(48);
     valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     row->addWidget(valueEdit, 2);

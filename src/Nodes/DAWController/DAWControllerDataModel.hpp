@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <algorithm>
 
 #include <QtCore/QObject>
@@ -408,7 +409,7 @@ namespace Nodes
             }
             const QUrl url = buildPlayersUrl();
             if (!url.isValid() || url.host().isEmpty()) {
-                setPollStatus(QStringLiteral("主机地址无效"));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "主机地址无效"));
                 return;
             }
 
@@ -418,7 +419,7 @@ namespace Nodes
 #endif
             m_pendingPoll = true;
             if (!m_httpConnected) {
-                setPollStatus(QStringLiteral("正在请求 %1 ...").arg(url.toString()));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "正在请求 %1 ...").arg(url.toString()));
             }
 
             QNetworkReply *reply = m_networkManager->get(request);
@@ -450,7 +451,7 @@ namespace Nodes
                     ++m_pollFailStreak;
                     if (!m_httpConnected || m_pollFailStreak >= 2) {
                         m_httpConnected = false;
-                        setPollStatus(QStringLiteral("请求失败: %1 (HTTP %2)").arg(errorString).arg(httpStatus));
+                        setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "请求失败: %1 (HTTP %2)").arg(errorString).arg(httpStatus));
                     }
                     reply->deleteLater();
                     return;
@@ -464,7 +465,7 @@ namespace Nodes
                 QJsonParseError parseError;
                 const QJsonDocument doc = QJsonDocument::fromJson(body, &parseError);
                 if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-                    setPollStatus(QStringLiteral("JSON 解析失败: %1").arg(parseError.errorString()));
+                    setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "JSON 解析失败: %1").arg(parseError.errorString()));
                     return;
                 }
 
@@ -475,7 +476,7 @@ namespace Nodes
                 }
                 updatePlayersFromJson(obj);
                 if (!wasConnected || prevCount != m_players.size()) {
-                    setPollStatus(QStringLiteral("已加载 %1 个播放器").arg(m_players.size()));
+                    setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "已加载 %1 个播放器").arg(m_players.size()));
                 }
                 return;
             }
@@ -662,8 +663,8 @@ namespace Nodes
                     const QIcon stopIcon(QStringLiteral(":/icons/icons/stop.png"));
                     toggleBtn->setIcon(playing ? playIcon : stopIcon);
                     toggleBtn->setToolTip(playing
-                        ? QStringLiteral("播放中，点击停止")
-                        : (paused ? QStringLiteral("暂停，点击播放") : QStringLiteral("停止，点击播放")));
+                        ? QCoreApplication::translate("Nodes::DAWControllerDataModel", "播放中，点击停止")
+                        : (paused ? QCoreApplication::translate("Nodes::DAWControllerDataModel", "暂停，点击播放") : QCoreApplication::translate("Nodes::DAWControllerDataModel", "停止，点击播放")));
                 }
                 connect(toggleBtn, &QPushButton::toggled, this,
                     [this, i](bool checked) {
@@ -673,8 +674,8 @@ namespace Nodes
                             const QIcon stopIcon(QStringLiteral(":/icons/icons/stop.png"));
                             btn->setIcon(checked ? playIcon : stopIcon);
                             btn->setToolTip(checked
-                                ? QStringLiteral("播放中，点击停止")
-                                : QStringLiteral("停止，点击播放"));
+                                ? QCoreApplication::translate("Nodes::DAWControllerDataModel", "播放中，点击停止")
+                                : QCoreApplication::translate("Nodes::DAWControllerDataModel", "停止，点击播放"));
                         }
                         setDesiredPlaying(i, checked, true, true);
                     });
@@ -743,8 +744,8 @@ namespace Nodes
             const QIcon stopIcon(QStringLiteral(":/icons/icons/stop.png"));
             btn->setIcon(checked ? playIcon : stopIcon);
             btn->setToolTip(checked
-                ? QStringLiteral("播放中，点击停止")
-                : QStringLiteral("停止，点击播放"));
+                ? QCoreApplication::translate("Nodes::DAWControllerDataModel", "播放中，点击停止")
+                : QCoreApplication::translate("Nodes::DAWControllerDataModel", "停止，点击播放"));
         }
 
         /**
@@ -780,7 +781,7 @@ namespace Nodes
         {
             const int idx = getSelectedPlayerIndex();
             if (idx < 0) {
-                setPollStatus(QStringLiteral("请先选择一个播放器"));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "请先选择一个播放器"));
                 return;
             }
             ensureDesiredSize(idx + 1);
@@ -794,7 +795,7 @@ namespace Nodes
         {
             const int idx = getSelectedPlayerIndex();
             if (idx < 0) {
-                setPollStatus(QStringLiteral("请先选择一个播放器"));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "请先选择一个播放器"));
                 return;
             }
             ensureDesiredSize(idx + 1);
@@ -827,7 +828,7 @@ namespace Nodes
             }
 
             if (index >= m_players.size() || m_players[index].id < 0) {
-                setPollStatus(QStringLiteral("序号 %1 无对应播放器").arg(index));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "序号 %1 无对应播放器").arg(index));
                 return;
             }
 
@@ -852,7 +853,7 @@ namespace Nodes
         void sendPlayerCommand(int playerId, const QString &operate)
         {
             if (!m_controller) {
-                setPollStatus(QStringLiteral("FTDAWController 未就绪"));
+                setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "FTDAWController 未就绪"));
                 return;
             }
             QJsonObject body;
@@ -864,7 +865,7 @@ namespace Nodes
 
             m_controller->sendMessage(cmd);
 
-            setPollStatus(QStringLiteral("已发送: %1 player #%2").arg(operate).arg(playerId));
+            setPollStatus(QCoreApplication::translate("Nodes::DAWControllerDataModel", "已发送: %1 player #%2").arg(operate).arg(playerId));
             QTimer::singleShot(300, this, &DAWControllerNode::fetchPlayers);
         }
 
@@ -949,7 +950,7 @@ namespace Nodes
         void setPollStatus(const QString &text)
         {
             if (widget && widget->statusLabel) {
-                widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+                widget->statusLabel->setText(QCoreApplication::translate("Nodes::DAWControllerDataModel", "状态: %1").arg(text));
             }
         }
 

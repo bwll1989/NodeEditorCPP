@@ -2,6 +2,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QDateTime>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -45,7 +46,7 @@ namespace Nodes
             PortEditable = false;
 
             widget->setPlaceholderText(
-                QStringLiteral("JS Expression (e.g., \"设备允许错误\" + $input.default)"));
+                QCoreApplication::translate("Nodes::LogOutDataModel", "JS 表达式（如 \"设备允许错误\" + $input.default）"));
             widget->setText(QStringLiteral("$input.default"));
 
             m_outData = std::make_shared<VariableData>();

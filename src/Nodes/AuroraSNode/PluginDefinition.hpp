@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "Aurora S 设备状态监控"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "Aurora S 设备状态监控")
 #define PLUGIN_TAG "Devices"
 
 /// Aurora S 节点插件入口，向 NodeEditor 注册 AuroraSDataModel
@@ -30,7 +30,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; }
     QString version() const override { return PLUGIN_VERSION; }
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
     QString tag() const override { return PLUGIN_TAG; }
     bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry>& reg) override;

@@ -4,6 +4,7 @@
 
 #include "ConfigManager.h"
 #include <QJsonObject>
+#include <QStringList>
 #include <QFile>
 #include <QDir>
 #include <QDebug>
@@ -76,6 +77,7 @@ ConfigManager::ConfigManager()
     , m_artnetSendFps(AppConfigs::ARTNET_SEND_FPS)
     , m_sceneAutoPublishMs(AppConfigs::SCENE_AUTO_PUBLISH_MS)
     , m_headlessTimelineLoop(true)
+    , m_language(QStringLiteral("zh"))
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -110,6 +112,17 @@ double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTA
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
 int ConfigManager::getSceneAutoPublishMs() const { return m_sceneAutoPublishMs; }
 bool ConfigManager::isHeadlessTimelineLoop() const { return m_headlessTimelineLoop; }
+QString ConfigManager::getLanguage() const { return m_language; }
+void ConfigManager::setLanguage(const QString& lang)
+{
+    // 仅接受已知语言代码，未知值回退中文（源文语言，无翻译文件即原生显示）
+    static const QStringList kKnownLanguages = {
+        QStringLiteral("zh"), QStringLiteral("en"), QStringLiteral("ja"),
+        QStringLiteral("zh_TW"), QStringLiteral("fr"),
+    };
+    m_language = kKnownLanguages.contains(lang) ? lang : QStringLiteral("zh");
+    saveConfig();
+}
 QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
 QString ConfigManager::getActivationCode() const { return m_activationCode; }
 int ConfigManager::getArtnetMergeMode() const { return m_artnetMergeMode; }
@@ -182,6 +195,13 @@ void ConfigManager::loadConfig()
     // headless（FlowRuntime）时间轴自动回放循环开关（默认开：无人值守场景
     // 播完回零续播；false = 播完停止）
     m_headlessTimelineLoop = settings.value("Runtime/HeadlessTimelineLoop", true).toBool();
+    // 界面语言（zh/en/ja/zh_TW/fr，见 SettingWidget 语言下拉）；非法值一律回退 "zh"
+    m_language = settings.value("General/Language", QStringLiteral("zh")).toString();
+    static const QStringList kKnownLanguages = {
+        QStringLiteral("zh"), QStringLiteral("en"), QStringLiteral("ja"),
+        QStringLiteral("zh_TW"), QStringLiteral("fr"),
+    };
+    if (!kKnownLanguages.contains(m_language)) m_language = QStringLiteral("zh");
 }
 
 void ConfigManager::createDefaultConfig()
@@ -233,6 +253,8 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/SceneAutoPublishMs", m_sceneAutoPublishMs);
     // headless 时间轴自动回放循环开关
     settings.setValue("Runtime/HeadlessTimelineLoop", m_headlessTimelineLoop);
+    // 界面语言（zh/en/ja/zh_TW/fr，切换后重启生效）
+    settings.setValue("General/Language", m_language);
 
     settings.sync();
 }

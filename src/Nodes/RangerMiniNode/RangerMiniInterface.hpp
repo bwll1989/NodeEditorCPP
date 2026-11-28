@@ -8,6 +8,7 @@
 
 #include "RangerMiniController.h"
 #include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -23,10 +24,10 @@ namespace Nodes
             mainLayout->setColumnStretch(0, 1);
             mainLayout->setColumnStretch(1, 2);
 
-            motionModeCombo->addItem(QStringLiteral("阿克曼"), RangerMiniController::Ackermann);
-            motionModeCombo->addItem(QStringLiteral("斜移"), RangerMiniController::Diagonal);
-            motionModeCombo->addItem(QStringLiteral("自旋"), RangerMiniController::Spin);
-            motionModeCombo->addItem(QStringLiteral("驻车"), RangerMiniController::Park);
+            motionModeCombo->addItem(QCoreApplication::translate("Nodes::RangerMiniInterface", "阿克曼"), RangerMiniController::Ackermann);
+            motionModeCombo->addItem(QCoreApplication::translate("Nodes::RangerMiniInterface", "斜移"), RangerMiniController::Diagonal);
+            motionModeCombo->addItem(QCoreApplication::translate("Nodes::RangerMiniInterface", "自旋"), RangerMiniController::Spin);
+            motionModeCombo->addItem(QCoreApplication::translate("Nodes::RangerMiniInterface", "驻车"), RangerMiniController::Park);
 
             linearSpin->setRange(-2.0, 2.0);
             linearSpin->setDecimals(3);
@@ -64,16 +65,16 @@ namespace Nodes
             mainLayout->addWidget(statusLabel, row++, 0, 1, 2);
 
             connectButton->setCheckable(true);
-            connectButton->setText(QStringLiteral("未连接"));
+            connectButton->setText(QCoreApplication::translate("Nodes::RangerMiniInterface", "未连接"));
             connectButton->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             enableButton->setCheckable(true);
             enableButton->setEnabled(false);
-            enableButton->setText(QStringLiteral("控制关闭"));
+            enableButton->setText(QCoreApplication::translate("Nodes::RangerMiniInterface", "控制关闭"));
             enableButton->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
-            statusLabel->setText(QStringLiteral("状态：-"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::RangerMiniInterface", "状态：-"));
 
             refreshDevices();
             connect(refreshButton, &QPushButton::clicked, this, &RangerMiniInterface::refreshDevices);
@@ -89,7 +90,7 @@ namespace Nodes
                 deviceCombo->setItemData(deviceCombo->count() - 1, info.path, Qt::ToolTipRole);
             }
             if (deviceCombo->count() == 0) {
-                deviceCombo->addItem(QStringLiteral("（未检测到 candleLight 设备）"), -1);
+                deviceCombo->addItem(QCoreApplication::translate("Nodes::RangerMiniInterface", "（未检测到 candleLight 设备）"), -1);
             } else if (current.isValid()) {
                 const int idx = deviceCombo->findData(current);
                 if (idx >= 0) {
@@ -102,7 +103,7 @@ namespace Nodes
         {
             QSignalBlocker blocker(connectButton);
             connectButton->setChecked(ready);
-            connectButton->setText(ready ? QStringLiteral("已连接 @500k") : QStringLiteral("未连接"));
+            connectButton->setText(ready ? QCoreApplication::translate("Nodes::RangerMiniInterface", "已连接 @500k") : QCoreApplication::translate("Nodes::RangerMiniInterface", "未连接"));
             connectButton->setStyleSheet(ready ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));
             enableButton->setEnabled(ready);
@@ -112,28 +113,28 @@ namespace Nodes
         {
             QSignalBlocker blocker(enableButton);
             enableButton->setChecked(armed);
-            enableButton->setText(armed ? QStringLiteral("控制开启") : QStringLiteral("控制关闭"));
+            enableButton->setText(armed ? QCoreApplication::translate("Nodes::RangerMiniInterface", "控制开启") : QCoreApplication::translate("Nodes::RangerMiniInterface", "控制关闭"));
             enableButton->setStyleSheet(armed ? QStringLiteral("color: green; font-weight: bold;")
                                               : QStringLiteral("color: red; font-weight: bold;"));
         }
 
         QGridLayout *mainLayout = new QGridLayout(this);
         QComboBox *deviceCombo = new QComboBox();
-        QPushButton *refreshButton = new QPushButton(QStringLiteral("刷新设备"));
+        QPushButton *refreshButton = new QPushButton(QCoreApplication::translate("Nodes::RangerMiniInterface", "刷新设备"));
         QPushButton *connectButton = new QPushButton();
         QComboBox *motionModeCombo = new QComboBox();
         FloatDragValueWidget *linearSpin = new FloatDragValueWidget();
         FloatDragValueWidget *steerSpin = new FloatDragValueWidget();
         FloatDragValueWidget *spinRateSpin = new FloatDragValueWidget();
-        QPushButton *clearFaultButton = new QPushButton(QStringLiteral("清除故障"));
+        QPushButton *clearFaultButton = new QPushButton(QCoreApplication::translate("Nodes::RangerMiniInterface", "清除故障"));
         QPushButton *enableButton = new QPushButton();
         QLabel *statusLabel = new QLabel();
 
     private:
-        QLabel *deviceLabel = new QLabel(QStringLiteral("设备"));
-        QLabel *motionModeLabel = new QLabel(QStringLiteral("运动模式"));
-        QLabel *linearLabel = new QLabel(QStringLiteral("线速度 Vx"));
-        QLabel *steerLabel = new QLabel(QStringLiteral("转角"));
-        QLabel *spinLabel = new QLabel(QStringLiteral("自旋"));
+        QLabel *deviceLabel = new QLabel(QCoreApplication::translate("Nodes::RangerMiniInterface", "设备"));
+        QLabel *motionModeLabel = new QLabel(QCoreApplication::translate("Nodes::RangerMiniInterface", "运动模式"));
+        QLabel *linearLabel = new QLabel(QCoreApplication::translate("Nodes::RangerMiniInterface", "线速度 Vx"));
+        QLabel *steerLabel = new QLabel(QCoreApplication::translate("Nodes::RangerMiniInterface", "转角"));
+        QLabel *spinLabel = new QLabel(QCoreApplication::translate("Nodes::RangerMiniInterface", "自旋"));
     };
 }

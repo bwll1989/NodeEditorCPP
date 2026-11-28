@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <QtCore/QObject>
+#include <QtCore/QCoreApplication>
 #include <QtWidgets/QLabel>
 
 #include <QPointer>
@@ -19,6 +20,7 @@
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/DataTypes/ImageGpuUpload.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include <QCoreApplication>
 
 using namespace NodeDataTypes;
 using namespace Nodes;
@@ -176,7 +178,7 @@ public Q_SLOTS:
     void toggleEditorMode()
     {
         colorEditorWidget->setParent(nullptr);
-        colorEditorWidget->setWindowTitle("颜色编辑器");
+        colorEditorWidget->setWindowTitle(QCoreApplication::translate("Nodes::ImageConstModel", "颜色编辑器"));
         colorEditorWidget->setWindowIcon(QIcon(":/icons/icons/curve.png"));
         colorEditorWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
         colorEditorWidget->setAttribute(Qt::WA_DeleteOnClose, false);

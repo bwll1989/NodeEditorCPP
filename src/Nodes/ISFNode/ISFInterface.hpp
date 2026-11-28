@@ -38,6 +38,7 @@
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -53,10 +54,10 @@ public:
         m_root->setContentsMargins(4, 2, 4, 4);
         m_root->setSpacing(6);
 
-        fileSelectComboBox->setPlaceholderText(QStringLiteral("Select .fs from Media Library"));
+        fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::ISFInterface", "从媒体库选择 .fs"));
         m_root->addWidget(fileSelectComboBox);
 
-        reloadButton->setText(QStringLiteral("Reload"));
+        reloadButton->setText(QCoreApplication::translate("Nodes::ISFInterface", "重新加载"));
         m_root->addWidget(reloadButton);
 
         m_paramsHost = new QWidget(this);
@@ -111,15 +112,15 @@ public:
         for (const ISFPortDesc& port : ports) {
             if (!port.isVariable()) {
                 if (port.isImage()) {
-                    auto* hint = new QLabel(QStringLiteral("(port)"), m_paramsHost);
+                    auto* hint = new QLabel(QCoreApplication::translate("Nodes::ISFInterface", "（端口）"), m_paramsHost);
                     hint->setStyleSheet(QStringLiteral("color: gray;"));
                     m_paramsForm->addRow(port.caption, hint);
                 } else if (port.isAudioWave()) {
-                    auto* hint = new QLabel(QStringLiteral("(audio → wave)"), m_paramsHost);
+                    auto* hint = new QLabel(QCoreApplication::translate("Nodes::ISFInterface", "（音频 → 波形）"), m_paramsHost);
                     hint->setStyleSheet(QStringLiteral("color: gray;"));
                     m_paramsForm->addRow(port.caption, hint);
                 } else if (port.isAudioFft()) {
-                    auto* hint = new QLabel(QStringLiteral("(audio → FFT)"), m_paramsHost);
+                    auto* hint = new QLabel(QCoreApplication::translate("Nodes::ISFInterface", "（音频 → FFT）"), m_paramsHost);
                     hint->setStyleSheet(QStringLiteral("color: gray;"));
                     m_paramsForm->addRow(port.caption, hint);
                 }
@@ -370,7 +371,7 @@ private:
         }
         m_editingColorName = paramName;
         m_colorEditor->setParent(nullptr);
-        m_colorEditor->setWindowTitle(QStringLiteral("ISF Color — %1").arg(paramName));
+        m_colorEditor->setWindowTitle(QCoreApplication::translate("Nodes::ISFInterface", "ISF 颜色 — %1").arg(paramName));
         m_colorEditor->setWindowFlags(
             Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
         m_colorEditor->setColor(color);

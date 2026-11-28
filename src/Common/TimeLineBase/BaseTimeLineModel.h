@@ -223,7 +223,7 @@ public slots:
     // override 后接 SceneHistory 会话（begin 冻结基线/end 一条历史收口）。
     virtual void beginInteractiveGeometryChange(
         AbstractClipModel* clip,
-        const QString& undoLabel = QStringLiteral("移动片段"));
+        const QString& undoLabel = tr("移动片段"));
     virtual void endInteractiveGeometryChange();
     void syncInteractiveClipOrder();
 

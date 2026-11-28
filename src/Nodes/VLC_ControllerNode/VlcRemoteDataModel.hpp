@@ -37,6 +37,7 @@
 #include "PluginDefinition.hpp"
 #include "VlcHttpClient.h"
 #include "VlcRemoteInterface.hpp"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -272,7 +273,7 @@ namespace Nodes
             }
             m_pendingPlaylist = true;
             if (!m_connected) {
-                setStatus(QStringLiteral("正在连接..."));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "正在连接..."));
             }
             m_playlistClient->sendGet(url, m_password);
         }
@@ -308,7 +309,7 @@ namespace Nodes
 
             syncParametersFromWidget();
             if (index < 0) {
-                setStatus(QStringLiteral("无效的播放列表序号"));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "无效的播放列表序号"));
                 publishDone(false);
                 return;
             }
@@ -319,7 +320,7 @@ namespace Nodes
 
             const QString playlistId = playlistIdAtIndex(index);
             if (playlistId.isEmpty()) {
-                setStatus(QStringLiteral("序号 %1 无对应播放项").arg(index));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "序号 %1 无对应播放项").arg(index));
                 publishDone(false);
                 return;
             }
@@ -340,7 +341,7 @@ namespace Nodes
             m_pendingPlayIndex = index;
             m_pendingIndex = -1;
             m_pendingUpdateIndex = true;
-            setStatus(QStringLiteral("切换 [%1] id=%2...").arg(index).arg(playlistId));
+            setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "切换 [%1] id=%2...").arg(index).arg(playlistId));
             AbstractDelegateModel::stateFeedBack("/play", true);
             m_statusClient->sendGet(url, m_password);
         }
@@ -367,7 +368,7 @@ namespace Nodes
             }
 
             m_pendingStop = true;
-            setStatus(QStringLiteral("正在停止..."));
+            setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "正在停止..."));
             AbstractDelegateModel::stateFeedBack("/stop", true);
             m_statusClient->sendGet(url, m_password);
         }
@@ -398,14 +399,14 @@ namespace Nodes
             m_pendingPlaylist = false;
             setConnected(true);
             updatePlaylistView(json);
-            setStatus(QStringLiteral("已加载 %1 个播放项").arg(widget->playlistWidget->count()));
+            setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "已加载 %1 个播放项").arg(widget->playlistWidget->count()));
         }
 
         void onPlaylistFailed(const QString &message, int)
         {
             m_pendingPlaylist = false;
             setConnected(false);
-            setStatus(QStringLiteral("连接失败: %1").arg(message));
+            setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "连接失败: %1").arg(message));
         }
 
         void onStatusResponse(const QJsonObject &json)
@@ -416,7 +417,7 @@ namespace Nodes
                 m_playingPlaylistId.clear();
                 syncPlayingHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("已停止"));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "已停止"));
                 flushQueuedControl();
                 return;
             }
@@ -427,7 +428,7 @@ namespace Nodes
                 m_playingPlaylistId = m_pendingPlayId;
                 syncPlayingHighlight();
                 publishDone(true);
-                setStatus(QStringLiteral("正在播放 [%1] id=%2")
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "正在播放 [%1] id=%2")
                               .arg(m_pendingPlayIndex)
                               .arg(m_playingPlaylistId));
                 QTimer::singleShot(300, this, &VlcRemoteDataModel::fetchPlaylists);
@@ -450,7 +451,7 @@ namespace Nodes
                 m_pendingStop = false;
                 AbstractDelegateModel::stateFeedBack("/stop", false);
                 publishDone(false);
-                setStatus(QStringLiteral("停止失败: %1").arg(message));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "停止失败: %1").arg(message));
                 flushQueuedControl();
                 return;
             }
@@ -458,7 +459,7 @@ namespace Nodes
                 m_pendingPlay = false;
                 AbstractDelegateModel::stateFeedBack("/play", false);
                 publishDone(false);
-                setStatus(QStringLiteral("切换失败: %1").arg(message));
+                setStatus(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "切换失败: %1").arg(message));
                 flushQueuedControl();
             }
         }
@@ -524,7 +525,7 @@ namespace Nodes
 
         void setStatus(const QString &text)
         {
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::VlcRemoteDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)

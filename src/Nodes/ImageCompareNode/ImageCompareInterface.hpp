@@ -8,6 +8,7 @@
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
+#include <QCoreApplication>
 namespace Nodes
 {
 class ImageCompareInterface final : public QWidget{
@@ -16,10 +17,10 @@ class ImageCompareInterface final : public QWidget{
         explicit ImageCompareInterface(QWidget *parent = nullptr) {
             main_layout=new QGridLayout();
             methodEdit=new QComboBox();
-            methodEdit->addItem("(均方差)MSE");
-            methodEdit->addItem("(结构相似性指数)SSIM");
-            methodEdit->addItem("(峰值信噪比)PSNR");
-            methodEdit->addItem("(图片相似度)直方图");
+            methodEdit->addItem(QCoreApplication::translate("Nodes::ImageCompareInterface", "(均方差)MSE"));
+            methodEdit->addItem(QCoreApplication::translate("Nodes::ImageCompareInterface", "(结构相似性指数)SSIM"));
+            methodEdit->addItem(QCoreApplication::translate("Nodes::ImageCompareInterface", "(峰值信噪比)PSNR"));
+            methodEdit->addItem(QCoreApplication::translate("Nodes::ImageCompareInterface", "(图片相似度)直方图"));
             methodEdit->setCurrentIndex(1);
             main_layout->addWidget(methodEdit,0,0,1,1);
 

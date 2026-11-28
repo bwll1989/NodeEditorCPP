@@ -28,6 +28,7 @@
 #include <cmath> // std::lround（Z 静态层级写回取整）
 #include <cstdint>
 
+#include <QCoreApplication>
 #include <QComboBox>
 #include <QDebug> // qWarning 流式（暴露面未知 key 漂移告警）
 #include <QFontMetrics>
@@ -295,7 +296,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      折叠 = 隐藏组内行容器（VBox 对 hidden 控件不保留占位），
     //      控件/通道/写回全链路不感知可见性——测试编程操作不受影响 ----
     auto makeGroupHeader = [&](const char* obj_name, const QString& title,
-                               const char* tip,
+                               const QString& tip,
                                bool expanded) -> QToolButton* {
         auto* btn = new QToolButton(box);
         btn->setObjectName(QString::fromUtf8(obj_name));
@@ -304,7 +305,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         btn->setText(title);
         btn->setCheckable(true);
         btn->setChecked(expanded);
-        btn->setToolTip(QString::fromUtf8(tip)); // 折叠时唯一的语义说明位
+        btn->setToolTip(tip); // 折叠时唯一的语义说明位
         // 展开样式（2026-11-13 用户「再优化下展开样式」）：checked 态标题
         // 加深——当前展开组一目了然（收起组保持灰）；margin-top 拉开组间
         // 间隔（组内行距 3px < 标题-内容 6px < 组间 ~10px 三级递进）
@@ -334,10 +335,10 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         btn->setIcon(resetGlyphIcon(btn->devicePixelRatioF()));
         btn->setToolTip(
             def.prop == TweenProp::Size
-                ? QStringLiteral("重置尺寸：删除尺寸上全部关键帧（停用动画），"
-                                 "值恢复素材原始尺寸（绑定素材的像素宽高）")
-                : QStringLiteral("重置：删除该属性上全部关键帧（停用动画），"
-                                 "值恢复默认"));
+                ? tr("重置尺寸：删除尺寸上全部关键帧（停用动画），"
+                     "值恢复素材原始尺寸（绑定素材的像素宽高）")
+                : tr("重置：删除该属性上全部关键帧（停用动画），"
+                     "值恢复默认"));
         btn->setStyleSheet(tailBtnQss);
         return btn;
     };
@@ -365,7 +366,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         g->setVerticalSpacing(3);
         g->setColumnMinimumWidth(
             0, QFontMetrics(box->font())
-                   .horizontalAdvance(QStringLiteral("不透明度")) +
+                   .horizontalAdvance(QCoreApplication::translate(
+                       "ClipSchema", "不透明度")) +
                    8);
         // 值区三列等 stretch（多余空间均分）；名/菱形/⟲ 列收缩随内容
         g->setColumnStretch(0, 0);
@@ -411,7 +413,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         const ms::FieldDef* fd = tweenFieldAt(i);
         Row r;
         r.prop       = def.prop;
-        r.name       = QString::fromUtf8(fd ? fd->label : def.key);
+        r.name       = fd ? QCoreApplication::translate("ClipSchema", fd->label)
+                          : QString::fromUtf8(def.key);
         r.components = fd ? fd->components : 1;
         // 【2026-11-18 语义终定】位置行 UI 两分量（X/Y）——第三数据槽
         //（v2=叠放层级）独立「层级 Z」行写同槽 static_vals_[2]（applyTo
@@ -452,10 +455,10 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         r.enable->setProperty("edge", edge); // 通道色（setDiamondVisual 取色）
         r.enable->setStyleSheet(tailBtnQss); // hover 淡底（描色在 pixmap 内）
         r.enable->setToolTip(
-            QStringLiteral("%1 动画：点击 = 播放头处打键（◆ 时点击 = "
-                           "删除该处键；删光全部键即停用动画）。"
-                           "◆ = 当前帧有键；◇ = 已启用但当前帧无键；"
-                           "○ = 未启用（纯静态）")
+            tr("%1 动画：点击 = 播放头处打键（◆ 时点击 = "
+               "删除该处键；删光全部键即停用动画）。"
+               "◆ = 当前帧有键；◇ = 已启用但当前帧无键；"
+               "○ = 未启用（纯静态）")
                 .arg(r.name));
         connect(r.enable, &QToolButton::clicked, this,
                 [this, i] { onDiamondClicked(i); });
@@ -465,57 +468,57 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         auto* name_lbl = new QLabel(r.name, box);
         if (def.prop == TweenProp::Position)
             name_lbl->setToolTip(
-                QStringLiteral("位置 = 画布坐标 X/Y + 深度 Z（第三值位，3D "
-                               "空间真实位置）：深度走透视投影 s=F/(F−Z)，"
-                               "正 = 朝观察者 Eye/舞台向上（画面放大）。三维打包一条属性："
-                               "一个键携带 X/Y 全部分量（深度 Z 为静态属"
-                               "性不参与关键帧；叠放层级在下方「层级 Z」行）"));
+                tr("位置 = 画布坐标 X/Y + 深度 Z（第三值位，3D "
+                   "空间真实位置）：深度走透视投影 s=F/(F−Z)，"
+                   "正 = 朝观察者 Eye/舞台向上（画面放大）。三维打包一条属性："
+                   "一个键携带 X/Y 全部分量（深度 Z 为静态属"
+                   "性不参与关键帧；叠放层级在下方「层级 Z」行）"));
         if (def.prop == TweenProp::Rotation)
             name_lbl->setToolTip(
-                QStringLiteral("三轴旋转（一键携 X/Y/Z 三分量）：X = 俯仰绕"
-                               "画布 X 轴（正 = 顶边后仰）、Y = 偏航绕画布 "
-                               "Y 轴（正 = 右缘远离）、Z = 滚转绕画布 Z 轴"
-                               "（2D 旋转，顺时针）——三轴旋转【应用完成后】"
-                               "透视投影到 XY 平面（针孔压扁，近大远小），"
-                               "绕锚点旋转。透视轴值域 ±89°"));
+                tr("三轴旋转（一键携 X/Y/Z 三分量）：X = 俯仰绕"
+                   "画布 X 轴（正 = 顶边后仰）、Y = 偏航绕画布 "
+                   "Y 轴（正 = 右缘远离）、Z = 滚转绕画布 Z 轴"
+                   "（2D 旋转，顺时针）——三轴旋转【应用完成后】"
+                   "透视投影到 XY 平面（针孔压扁，近大远小），"
+                   "绕锚点旋转。透视轴值域 ±89°"));
         if (def.prop >= TweenProp::CropT && def.prop <= TweenProp::CropR)
             name_lbl->setToolTip(
-                QStringLiteral("裁切：可见矩形各边向内收（画布 px，内容不"
-                               "缩放不回写位置/尺寸读数）；四边各一条属性"
-                               "单独打键。全部归 0 = 不裁切"));
+                tr("裁切：可见矩形各边向内收（画布 px，内容不"
+                   "缩放不回写位置/尺寸读数）；四边各一条属性"
+                   "单独打键。全部归 0 = 不裁切"));
         if (def.prop >= TweenProp::CornerLT &&
             def.prop <= TweenProp::CornerLB)
             name_lbl->setToolTip(
-                QStringLiteral("角点位移：相对未变形位置的末端修正偏移"
-                               "（画布 px；LT 左上 / RT 右上 / RB 右下 / "
-                               "LB 左下，每角单独打键）。旋转非 0 时位移"
-                               "恒沿屏幕方向不随画面转；不影响位置/尺寸 "
-                               "读数；全部归 0 = 无变形。支持关键帧动画"));
+                tr("角点位移：相对未变形位置的末端修正偏移"
+                   "（画布 px；LT 左上 / RT 右上 / RB 右下 / "
+                   "LB 左下，每角单独打键）。旋转非 0 时位移"
+                   "恒沿屏幕方向不随画面转；不影响位置/尺寸 "
+                   "读数；全部归 0 = 无变形。支持关键帧动画"));
 
         if (def.prop == TweenProp::Opacity)
             name_lbl->setToolTip(
-                QStringLiteral("不透明度 [0,1]：与素材自身 alpha 相乘（1=不"
-                               "透明，0=全透明），整条画面统一淡变；支持关"
-                               "键帧动画"));
+                tr("不透明度 [0,1]：与素材自身 alpha 相乘（1=不"
+                   "透明，0=全透明），整条画面统一淡变；支持关"
+                   "键帧动画"));
         if (def.prop == TweenProp::AudioGain)
             name_lbl->setToolTip(
-                QStringLiteral("音频增益 [0,2]（线性倍率，2026-11-10 追加）："
-                               "1.0=不衰减、0=静音、2.0=+6dB（上限防增益曲"
-                               "线异常把混音推入持续削波）。有 AudioGain 通"
-                               "道时整条接管静态 audio_gain；消费端 = 混音"
-                               "引擎 resolveGain，支持关键帧做音量自动化"));
+                tr("音频增益 [0,2]（线性倍率，2026-11-10 追加）："
+                   "1.0=不衰减、0=静音、2.0=+6dB（上限防增益曲"
+                   "线异常把混音推入持续削波）。有 AudioGain 通"
+                   "道时整条接管静态 audio_gain；消费端 = 混音"
+                   "引擎 resolveGain，支持关键帧做音量自动化"));
         if (def.prop == TweenProp::RgbGain)
             name_lbl->setToolTip(
-                QStringLiteral("RGB 增益 [0,2]（三通道线性倍率，2026-11-20 追加）："
-                               "采样后逐通道相乘（1=不变，0=该通道压黑，>1 "
-                               "提升亮度/调色）。三通道打包一条属性：一个键携带 R/G/B "
-                               "全部分量。偏色校正/色彩氛围动画用，支持关键帧"));
+                tr("RGB 增益 [0,2]（三通道线性倍率，2026-11-20 追加）："
+                   "采样后逐通道相乘（1=不变，0=该通道压黑，>1 "
+                   "提升亮度/调色）。三通道打包一条属性：一个键携带 R/G/B "
+                   "全部分量。偏色校正/色彩氛围动画用，支持关键帧"));
         if (def.prop == TweenProp::Gamma)
             name_lbl->setToolTip(
-                QStringLiteral("Gamma 伽马校正 [0.1,4]（2026-11-20 追加）："
-                               "渲染端 pow(颜色, 1/γ)——γ>1 提亮中间调、"
-                               "<1 压暗；1.0 = 不校正（零开销）。支持关键帧"
-                               "做曝光/氛围渐变"));
+                tr("Gamma 伽马校正 [0.1,4]（2026-11-20 追加）："
+                   "渲染端 pow(颜色, 1/γ)——γ>1 提亮中间调、"
+                   "<1 压暗；1.0 = 不校正（零开销）。支持关键帧"
+                   "做曝光/氛围渐变"));
 
         // 值框（三维行三框 / 二维行双框 / 标量行单框）；编辑 → 打包双模直写
         // （2026-11-12 用户定案：面板数值控件统一 DragValue——拖拽/滚轮步进、
@@ -536,12 +539,12 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             if (unit_str && unit_str[0])
                 sp->setSuffix(QString::fromUtf8(unit_str));
             sp->setToolTip(
-                QStringLiteral("播放头处 %1 的%2%3（通道 = 插值结果；未启用"
-                               " = 静态基准）。通道启用时修改任一分量即在播"
-                               "放头位置打包写关键帧")
+                tr("播放头处 %1 的%2%3（通道 = 插值结果；未启用"
+                   " = 静态基准）。通道启用时修改任一分量即在播"
+                   "放头位置打包写关键帧")
                     .arg(r.name,
                          r.components >= 2
-                             ? QStringLiteral("分量 ")
+                             ? tr("分量 ")
                              : QStringLiteral(""),
                          r.components >= 2
                              ? QString::fromUtf8(fd ? fd->comp_names[c]
@@ -588,9 +591,9 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      组 2「裁切」行 3..6 / 组 3「形变」行 7..10 / 组 4「合成」行 11
     //      ——除组 0 外默认收（零值噪音收进折叠，与 v2 渐进折叠同精神）
     grp_btn_[0] = makeGroupHeader(
-        "tweenGroupXform", QStringLiteral("变换（锚点 / 位置 / 层级 / 尺寸）"),
-        "旋转缩放锚点 + 位置（X/Y/深度 Z，3D 空间真实位置）+ 叠放层级与"
-        "尺寸（画布 px）：改值即编辑画面；配合菱形开关关键帧动画",
+        "tweenGroupXform", tr("变换（锚点 / 位置 / 层级 / 尺寸）"),
+        tr("旋转缩放锚点 + 位置（X/Y/深度 Z，3D 空间真实位置）+ 叠放层级与"
+           "尺寸（画布 px）：改值即编辑画面；配合菱形开关关键帧动画"),
         true);
     lay->addWidget(grp_btn_[0]);
     {
@@ -608,18 +611,18 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             // ---- 锚点行（组 0 首行——2026-11-09 用户指令"锚点选项移到位置
             //      之上"：锚点是旋转/缩放的枢轴，语义先于位置/尺寸）。静态属
             //      性非 tween：列 4 空（无菱形），⟲ 在列 5 与属性行右端对齐
-            auto* lbl = new QLabel(QStringLiteral("锚点"), box);
+            auto* lbl = new QLabel(tr("锚点"), box);
             lbl->setToolTip(
-                QStringLiteral("旋转与缩放的枢轴：中心或四个角点。改变锚点不"
-                               "补偿位置——旋转/缩放非恒等时画面会绕新枢轴"
-                               "重排（再调位置分量对位即可）"));
+                tr("旋转与缩放的枢轴：中心或四个角点。改变锚点不"
+                   "补偿位置——旋转/缩放非恒等时画面会绕新枢轴"
+                   "重排（再调位置分量对位即可）"));
             anchor_combo_ = new QComboBox(box);
             anchor_combo_->setObjectName(QStringLiteral("tweenAnchor"));
-            anchor_combo_->addItem(QStringLiteral("中心")); // 0 = 默认（历史行为）
-            anchor_combo_->addItem(QStringLiteral("左上")); // 1
-            anchor_combo_->addItem(QStringLiteral("右上")); // 2
-            anchor_combo_->addItem(QStringLiteral("右下")); // 3
-            anchor_combo_->addItem(QStringLiteral("左下")); // 4
+            anchor_combo_->addItem(tr("中心")); // 0 = 默认（历史行为）
+            anchor_combo_->addItem(tr("左上")); // 1
+            anchor_combo_->addItem(tr("右上")); // 2
+            anchor_combo_->addItem(tr("右下")); // 3
+            anchor_combo_->addItem(tr("左下")); // 4
             // 预填在 connect 之前（不触发写回）
             anchor_val_ = std::clamp(clip.transform.anchor, 0, 4);
             anchor_combo_->setCurrentIndex(anchor_val_);
@@ -637,8 +640,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             rst->setFixedSize(kTailBtnPx, kTailBtnPx);
             rst->setIconSize(QSize(kTailIconPx, kTailIconPx)); // 防 16px 默认放大
             rst->setIcon(resetGlyphIcon(rst->devicePixelRatioF()));
-            rst->setToolTip(QStringLiteral("恢复默认锚点（中心）——静态属性"
-                                           "无动画通道，直接写回静态基准"));
+            rst->setToolTip(tr("恢复默认锚点（中心）——静态属性"
+                               "无动画通道，直接写回静态基准"));
             rst->setStyleSheet(tailBtnQss);
             connect(rst, &QToolButton::clicked, this, [this] {
                 anchor_val_ = 0;
@@ -673,13 +676,13 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         //      属性行右端对齐（同锚点行规格）。【P4-A 门控】随组 0 同进
         //      退（g0_has=false 不生成）--------------------------------------
         if (g0_has) {
-            auto* llbl = new QLabel(QStringLiteral("层级 Z"), box);
+            auto* llbl = new QLabel(tr("层级 Z"), box);
             llbl->setToolTip(
-                QStringLiteral("叠放层级（整数，无单位——不是空间坐标）：多"
-                               "片段重叠时的绘制先后——小值先绘（底层）、"
-                               "大值后绘（顶层）；遮挡次序=图层次序时的排"
-                               "序键。素材在三维中的 z 位置在位置行「深度"
-                               " Z」，两者互不相干"));
+                tr("叠放层级（整数，无单位——不是空间坐标）：多"
+                   "片段重叠时的绘制先后——小值先绘（底层）、"
+                   "大值后绘（顶层）；遮挡次序=图层次序时的排"
+                   "序键。素材在三维中的 z 位置在位置行「深度"
+                   " Z」，两者互不相干"));
             z_layer_spin_ = new IntDragValueWidget(box);
             z_layer_spin_->setObjectName(QStringLiteral("tweenLayerZ"));
             z_layer_spin_->setRange(-1000, 1000);
@@ -697,8 +700,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             lrst->setFixedSize(kTailBtnPx, kTailBtnPx);
             lrst->setIconSize(QSize(kTailIconPx, kTailIconPx));
             lrst->setIcon(resetGlyphIcon(lrst->devicePixelRatioF()));
-            lrst->setToolTip(QStringLiteral("恢复默认层级（0）——静态属性"
-                                           "无动画通道，直接写回静态基准"));
+            lrst->setToolTip(tr("恢复默认层级（0）——静态属性"
+                                "无动画通道，直接写回静态基准"));
             lrst->setStyleSheet(tailBtnQss);
             connect(lrst, &QToolButton::clicked, this, [this] {
                 {
@@ -718,16 +721,16 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             //      By Layer=层级 Z（历史）/ By Z=几何深度 pos_z 远先绘
             //      近后绘）。静态属性非 tween（列 4 空无菱形；无 ⟲——
             //      模式枚举无"默认值重置"语义，历史默认即图层级）。
-            auto* slbl = new QLabel(QStringLiteral("遮挡次序"), box);
+            auto* slbl = new QLabel(tr("遮挡次序"), box);
             slbl->setToolTip(
-                QStringLiteral("本片段参与渲染排序的键（WATCHOUT Stacking "
-                               "语义）：图层次序 = 按上方「层级 Z」升序（历"
-                               "史行为）；深度次序 = 按位置行「深度 Z」升序"
-                               "（远的先画、近的遮挡远的——透视场景物理遮挡）"));
+                tr("本片段参与渲染排序的键（WATCHOUT Stacking "
+                   "语义）：图层次序 = 按上方「层级 Z」升序（历"
+                   "史行为）；深度次序 = 按位置行「深度 Z」升序"
+                   "（远的先画、近的遮挡远的——透视场景物理遮挡）"));
             stacking_combo_ = new QComboBox(box);
             stacking_combo_->setObjectName(QStringLiteral("tweenStacking"));
-            stacking_combo_->addItem(QStringLiteral("图层次序")); // 0=默认
-            stacking_combo_->addItem(QStringLiteral("深度次序")); // 1
+            stacking_combo_->addItem(tr("图层次序")); // 0=默认
+            stacking_combo_->addItem(tr("深度次序")); // 1
             stacking_val_ = clip.stacking == kStackingPositionZ ? 1 : 0;
             stacking_combo_->setCurrentIndex(stacking_val_);
             connect(stacking_combo_,
@@ -750,9 +753,9 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     // ---- 组 1「姿态」：旋转一行三维打包（2026-11-20 修订：三轴旋转
     //      应用完成后透视投影到 XY 平面——近大远小）------------------------
     grp_btn_[1] = makeGroupHeader(
-        "tweenGroupPose", QStringLiteral("姿态（绕 X / Y / Z 轴旋转）"),
-        "三轴旋转一条通道：X = 俯仰、Y = 偏航、Z = 滚转（2D 旋转）——应用"
-        "完成后透视投影到 XY 平面（针孔压扁，近大远小）。点击标题展开",
+        "tweenGroupPose", tr("姿态（绕 X / Y / Z 轴旋转）"),
+        tr("三轴旋转一条通道：X = 俯仰、Y = 偏航、Z = 滚转（2D 旋转）——应用"
+           "完成后透视投影到 XY 平面（针孔压扁，近大远小）。点击标题展开"),
         false);
     lay->addWidget(grp_btn_[1]);
     {
@@ -765,9 +768,9 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
 
     // ---- 组 2「裁切」：上下左右（v3 数据链：可见矩形收缩 + 帧采样窗）------
     grp_btn_[2] = makeGroupHeader(
-        "tweenGroupCrop", QStringLiteral("裁切（上下左右向内收）"),
-        "裁切 = 可见矩形各边向内收（画布 px）：内容不缩放，裁掉部分从"
-        "画面移除；不影响位置/尺寸读数。点击标题展开",
+        "tweenGroupCrop", tr("裁切（上下左右向内收）"),
+        tr("裁切 = 可见矩形各边向内收（画布 px）：内容不缩放，裁掉部分从"
+           "画面移除；不影响位置/尺寸读数。点击标题展开"),
         false);
     lay->addWidget(grp_btn_[2]);
     {
@@ -783,8 +786,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      [LT,RT,RB,LB] × (dx,dy) 同序）；Transform.corner 已在求值/
     //      渲染全链路，通道求值结果直接驱动既有 corner 管线
     grp_btn_[3] = makeGroupHeader(
-        "tweenGroupCorner", QStringLiteral("形变（角点 corner pin 偏移）"),
-        "四角位移变形（corner pin 末端修正，画布 px，每角单独打键）——点击展开",
+        "tweenGroupCorner", tr("形变（角点 corner pin 偏移）"),
+        tr("四角位移变形（corner pin 末端修正，画布 px，每角单独打键）——点击展开"),
         false);
     lay->addWidget(grp_btn_[3]);
     {
@@ -799,10 +802,10 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      2026-11-20 追加 RGB 增益/Gamma——schema/写回/读回同轮就绪，
     //      组装配漏 buildRow 导致用户"合成组看不到颜色设置"，补上）----
     grp_btn_[4] = makeGroupHeader(
-        "tweenGroupComp", QStringLiteral("合成（不透明度 / 颜色 / 音频增益）"),
-        "不透明度 [0,1]（与素材自身 alpha 相乘）；RGB 增益 [0,2]（R/G/B "
-        "线性增益，1.0=不变）；Gamma [0.1,4]（1.0=不校正，pow(c,1/γ)）；"
-        "音频增益 [0,2]（线性，1.0=不衰减，0=静音）——点击标题展开",
+        "tweenGroupComp", tr("合成（不透明度 / 颜色 / 音频增益）"),
+        tr("不透明度 [0,1]（与素材自身 alpha 相乘）；RGB 增益 [0,2]（R/G/B "
+           "线性增益，1.0=不变）；Gamma [0.1,4]（1.0=不校正，pow(c,1/γ)）；"
+           "音频增益 [0,2]（线性，1.0=不衰减，0=静音）——点击标题展开"),
         false);
     lay->addWidget(grp_btn_[4]);
     {

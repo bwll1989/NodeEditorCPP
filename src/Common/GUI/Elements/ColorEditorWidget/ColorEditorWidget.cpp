@@ -435,7 +435,7 @@ void ColorEditorWidget::buildUI()
     };
 
     {
-        auto* label = new QLabel(tr("Hue"), this);
+        auto* label = new QLabel(tr("色相"), this);
         label->setMinimumWidth(72);
         label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         slideHue->setOrientation(Qt::Horizontal);
@@ -448,9 +448,9 @@ void ColorEditorWidget::buildUI()
 
 
 
-    mkRow(1, tr("Saturation"), slideSaturation, spinSaturation, 255);
+    mkRow(1, tr("饱和度"), slideSaturation, spinSaturation, 255);
 
-    mkRow(2, tr("Value"), slideValue, spinValue, 255);
+    mkRow(2, tr("明度"), slideValue, spinValue, 255);
 
     // 分隔线
     QFrame* sep = new QFrame(this);
@@ -459,13 +459,13 @@ void ColorEditorWidget::buildUI()
     right->addWidget(sep, 3, 0, 1, 3);
 
 
-    mkRow(4, tr("Red"), slideRed, spinRed, 255);
+    mkRow(4, tr("红"), slideRed, spinRed, 255);
 
-    mkRow(5, tr("Green"), slideGreen, spinGreen, 255);
+    mkRow(5, tr("绿"), slideGreen, spinGreen, 255);
 
-    mkRow(6, tr("Blue"), slideBlue, spinBlue, 255);
+    mkRow(6, tr("蓝"), slideBlue, spinBlue, 255);
 
-    mkRow(7, tr("Alpha"), slideAlpha, spinAlpha, 255);
+    mkRow(7, tr("透明度"), slideAlpha, spinAlpha, 255);
 
     editHex->setPreviewColor(true);
     editHex->setShowAlpha(true);
@@ -473,7 +473,7 @@ void ColorEditorWidget::buildUI()
     editHex->setPlaceholderText("#RRGGBBAA");
     // 函数级注释：Hex 行置于右列最底部，三列布局（标签/空列/输入框），与其他行对齐
     {
-        auto* hexLabel = new QLabel(tr("Hex"), this);
+        auto* hexLabel = new QLabel(tr("十六进制"), this);
         hexLabel->setMinimumWidth(72);
         hexLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         right->addWidget(hexLabel, 8, 0);

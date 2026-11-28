@@ -60,7 +60,7 @@ void MtcSender::start(const QString &deviceName, TimeCodeType type)
     // 空设备名防御："".split(":")[0].toInt() == 0 会误开端口 0
     if (deviceName.trimmed().isEmpty()) {
         _deviceName = deviceName;
-        emit statusChanged(true, QStringLiteral("未选择 MIDI 输出设备"));
+        emit statusChanged(true, tr("未选择 MIDI 输出设备"));
         return;
     }
 
@@ -75,14 +75,14 @@ void MtcSender::start(const QString &deviceName, TimeCodeType type)
         _midiOut = new RtMidiOut();
         const unsigned int count = _midiOut->getPortCount();
         if (portIndex < 0 || static_cast<unsigned int>(portIndex) >= count) {
-            emit statusChanged(true, QStringLiteral("找不到指定的 MIDI 输出设备"));
+            emit statusChanged(true, tr("找不到指定的 MIDI 输出设备"));
             delete _midiOut;
             _midiOut = nullptr;
             return;
         }
         _midiOut->openPort(static_cast<unsigned int>(portIndex), "Flow-MTC-Out");
     } catch (const RtMidiError &e) {
-        emit statusChanged(true, QStringLiteral("打开 MIDI 设备失败: %1")
+        emit statusChanged(true, tr("打开 MIDI 设备失败: %1")
                                       .arg(QString::fromStdString(e.getMessage())));
         delete _midiOut;
         _midiOut = nullptr;
@@ -176,7 +176,7 @@ void MtcSender::setPlaying(bool playing)
 
     if (playing) {
         if (!_midiOut) {
-            emit statusChanged(true, QStringLiteral("MIDI 输出设备未打开"));
+            emit statusChanged(true, tr("MIDI 输出设备未打开"));
             _playing = false;
             return;
         }

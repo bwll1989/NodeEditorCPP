@@ -34,7 +34,7 @@
 SystemInfoWidget::SystemInfoWidget(QWidget* parent)
     : QDialog(parent)
 {
-    setWindowTitle(QStringLiteral("系统信息"));
+    setWindowTitle(tr("系统信息"));
     setMinimumWidth(600);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -81,12 +81,12 @@ SystemInfoWidget::SystemInfoWidget(QWidget* parent)
         }
     };
 
-    addSection(QStringLiteral("系统"), getOSInfo());
+    addSection(tr("系统"), getOSInfo());
     addSection(QStringLiteral("CPU"), getCPUInfo());
-    addSection(QStringLiteral("内存"), getMemoryInfo());
-    addSection(QStringLiteral("硬盘"), getDiskInfo());
-    addSection(QStringLiteral("网络"), getNetworkInfo());
-    addSection(QStringLiteral("显卡"), getGPUInfo());
+    addSection(tr("内存"), getMemoryInfo());
+    addSection(tr("硬盘"), getDiskInfo());
+    addSection(tr("网络"), getNetworkInfo());
+    addSection(tr("显卡"), getGPUInfo());
     addSection(QStringLiteral("OpenCV"), getOpenCvInfo());
     addSection(QStringLiteral("FFmpeg"), getFfmpegInfo());
 
@@ -163,7 +163,7 @@ QString SystemInfoWidget::getOSInfo() const {
     
     return fullInfo;
 #else
-    return QStringLiteral("非Windows系统");
+    return tr("非Windows系统");
 #endif
 }
 
@@ -174,7 +174,7 @@ QString SystemInfoWidget::getCPUInfo() const {
     QString cpuName;
     QSettings reg(R"(HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0)", QSettings::NativeFormat);
     cpuName = reg.value("ProcessorNameString").toString();
-    if (cpuName.isEmpty()) cpuName = QStringLiteral("未知CPU");
+    if (cpuName.isEmpty()) cpuName = tr("未知CPU");
 
     // 获取核心数和逻辑处理器数
     DWORD returnLength = 0;
@@ -202,11 +202,11 @@ QString SystemInfoWidget::getCPUInfo() const {
     }
 
     if (physicalCores > 0 && logicalProcessors > 0) {
-        return QString("%1，%2核/%3线程").arg(cpuName).arg(physicalCores).arg(logicalProcessors);
+        return tr("%1，%2核/%3线程").arg(cpuName).arg(physicalCores).arg(logicalProcessors);
     }
     return cpuName;
 #else
-    return QStringLiteral("未知CPU");
+    return tr("未知CPU");
 #endif
 }
 
@@ -218,13 +218,13 @@ QString SystemInfoWidget::getMemoryInfo() const {
     if (GlobalMemoryStatusEx(&statex)) {
         const double totalGB = static_cast<double>(statex.ullTotalPhys) / (1024.0*1024.0*1024.0);
         const double availGB = static_cast<double>(statex.ullAvailPhys) / (1024.0*1024.0*1024.0);
-        return QString("总内存 %1 GB，可用 %2 GB (使用率 %3%)")
+        return tr("总内存 %1 GB，可用 %2 GB (使用率 %3%)")
             .arg(totalGB, 0, 'f', 2)
             .arg(availGB, 0, 'f', 2)
             .arg(statex.dwMemoryLoad);
     }
 #endif
-    return QStringLiteral("未知内存");
+    return tr("未知内存");
 }
 
 // 函数级注释：获取硬盘信息（使用 Windows API GetDiskFreeSpaceEx）
@@ -241,15 +241,15 @@ QString SystemInfoWidget::getDiskInfo() const {
                 if (GetDiskFreeSpaceExW((LPCWSTR)root.utf16(), &freeBytesAvailable, &totalNumberOfBytes, &totalNumberOfFreeBytes)) {
                     double totalGB = static_cast<double>(totalNumberOfBytes.QuadPart) / (1024.0 * 1024.0 * 1024.0);
                     double freeGB = static_cast<double>(totalNumberOfFreeBytes.QuadPart) / (1024.0 * 1024.0 * 1024.0);
-                    lines << QString("%1: 总量 %2 GB，剩余 %3 GB").arg(root).arg(totalGB, 0, 'f', 1).arg(freeGB, 0, 'f', 1);
+                    lines << tr("%1: 总量 %2 GB，剩余 %3 GB").arg(root).arg(totalGB, 0, 'f', 1).arg(freeGB, 0, 'f', 1);
                 }
             }
         }
         drives >>= 1;
     }
-    return lines.isEmpty() ? QStringLiteral("未检测到固定磁盘") : lines.join("\n");
+    return lines.isEmpty() ? tr("未检测到固定磁盘") : lines.join("\n");
 #endif
-    return QStringLiteral("不支持的平台");
+    return tr("不支持的平台");
 }
 
 // 函数级注释：获取显卡信息（使用 Windows API EnumDisplayDevices，包括驱动版本）
@@ -266,7 +266,7 @@ QString SystemInfoWidget::getGPUInfo() const {
         }
         
         QString gpuName = QString::fromWCharArray(dd.DeviceString);
-        QString driverVersion = QStringLiteral("未知版本");
+        QString driverVersion = tr("未知版本");
 
         // 尝试从注册表获取驱动版本
         // DeviceKey 类似于 \Registry\Machine\System\CurrentControlSet\Control\Video\{GUID}\0000
@@ -285,7 +285,7 @@ QString SystemInfoWidget::getGPUInfo() const {
             }
         }
 
-        QString info = QString("%1 (驱动: %2)").arg(gpuName, driverVersion);
+        QString info = tr("%1 (驱动: %2)").arg(gpuName, driverVersion);
         if (!gpuName.isEmpty() && !gpus.contains(info)) {
             gpus << info;
         }
@@ -295,7 +295,7 @@ QString SystemInfoWidget::getGPUInfo() const {
         return gpus.join("；\n");
     }
 #endif
-    return QStringLiteral("未知显卡");
+    return tr("未知显卡");
 }
 
 // 函数级注释：获取网络信息（使用 Windows API GetAdaptersAddresses，包括网关）
@@ -306,12 +306,12 @@ QString SystemInfoWidget::getNetworkInfo() const {
     // 动态加载 iphlpapi.dll 以避免链接依赖
     typedef ULONG (WINAPI *GetAdaptersAddressesPtr)(ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG);
     HMODULE hLib = LoadLibraryW(L"iphlpapi.dll");
-    if (!hLib) return QStringLiteral("无法加载网络库");
+    if (!hLib) return tr("无法加载网络库");
 
     GetAdaptersAddressesPtr pGetAdaptersAddresses = (GetAdaptersAddressesPtr)GetProcAddress(hLib, "GetAdaptersAddresses");
     if (!pGetAdaptersAddresses) {
         FreeLibrary(hLib);
-        return QStringLiteral("无法获取网络函数");
+        return tr("无法获取网络函数");
     }
 
     ULONG outBufLen = 15000;
@@ -358,7 +358,7 @@ QString SystemInfoWidget::getNetworkInfo() const {
                                           .arg(maskVal & 0xFF);
                         
                         // New format: Subnet mask on new line
-                        ips << QString("  IP: %1\n  掩码: %2").arg(ipStr, maskStr);
+                        ips << tr("  IP: %1\n  掩码: %2").arg(ipStr, maskStr);
                     }
                     pUnicast = pUnicast->Next;
                 }
@@ -382,7 +382,7 @@ QString SystemInfoWidget::getNetworkInfo() const {
                 if (!ips.isEmpty()) {
                     QString info = QString("%1:\n%2").arg(name, ips.join("\n"));
                     if (!gateways.isEmpty()) {
-                        info += QString("\n  网关: %1").arg(gateways.join(", "));
+                        info += tr("\n  网关: %1").arg(gateways.join(", "));
                     }
                     lines << info;
                 }
@@ -394,9 +394,9 @@ QString SystemInfoWidget::getNetworkInfo() const {
     if (pAddresses) free(pAddresses);
     FreeLibrary(hLib);
 
-    return lines.isEmpty() ? QStringLiteral("无活跃网络连接") : lines.join("\n");
+    return lines.isEmpty() ? tr("无活跃网络连接") : lines.join("\n");
 #endif
-    return QStringLiteral("不支持的平台");
+    return tr("不支持的平台");
 }
 
 /**
@@ -410,7 +410,7 @@ static QString runAndCapture(const QString& program, const QStringList& args, in
     proc.start();
     if (!proc.waitForStarted(timeoutMs)) {
         if (errorOut) {
-            *errorOut = QStringLiteral("启动失败: %1").arg(program);
+            *errorOut = QCoreApplication::translate("SystemInfoWidget", "启动失败: %1").arg(program);
         }
         return QString();
     }
@@ -420,7 +420,7 @@ static QString runAndCapture(const QString& program, const QStringList& args, in
         proc.kill();
         proc.waitForFinished(1000);
         if (errorOut) {
-            *errorOut = QStringLiteral("执行超时: %1").arg(program);
+            *errorOut = QCoreApplication::translate("SystemInfoWidget", "执行超时: %1").arg(program);
         }
         return QString();
     }
@@ -435,7 +435,7 @@ static QString runAndCapture(const QString& program, const QStringList& args, in
 static QString PrintOpenCvGpuCapabilities()
 {
     QStringList lines;
-    lines << QStringLiteral("OpenCV 版本: %1").arg(QString::fromLatin1(CV_VERSION));
+    lines << QCoreApplication::translate("SystemInfoWidget", "OpenCV 版本: %1").arg(QString::fromLatin1(CV_VERSION));
 
     const QString buildInfo = QString::fromLocal8Bit(cv::getBuildInformation().c_str());
     const bool buildCuda = buildInfo.contains(QStringLiteral("NVIDIA CUDA: YES"), Qt::CaseInsensitive);
@@ -451,24 +451,24 @@ static QString PrintOpenCvGpuCapabilities()
         cudaError = QString::fromLocal8Bit(e.what());
     }
     if (cudaError.isEmpty()) {
-        lines << QStringLiteral("CUDA 设备数: %1").arg(cudaCount);
+        lines << QCoreApplication::translate("SystemInfoWidget", "CUDA 设备数: %1").arg(cudaCount);
     } else {
-        lines << QStringLiteral("CUDA 探测异常: %1").arg(cudaError);
+        lines << QCoreApplication::translate("SystemInfoWidget", "CUDA 探测异常: %1").arg(cudaError);
     }
 
     const bool haveOpenCL = cv::ocl::haveOpenCL();
-    lines << QStringLiteral("OpenCL 可用(运行时): %1").arg(haveOpenCL ? "YES" : "NO");
+    lines << QCoreApplication::translate("SystemInfoWidget", "OpenCL 可用(运行时): %1").arg(haveOpenCL ? "YES" : "NO");
     if (haveOpenCL) {
         cv::ocl::setUseOpenCL(true);
-        lines << QStringLiteral("OpenCL 已启用: %1").arg(cv::ocl::useOpenCL() ? "YES" : "NO");
+        lines << QCoreApplication::translate("SystemInfoWidget", "OpenCL 已启用: %1").arg(cv::ocl::useOpenCL() ? "YES" : "NO");
 
         cv::ocl::Context ctx;
         if (ctx.create(cv::ocl::Device::TYPE_ALL) && ctx.ndevices() > 0) {
             const auto dev = ctx.device(0);
-            lines << QStringLiteral("OpenCL 设备: %1").arg(QString::fromLocal8Bit(dev.name().c_str()));
-            lines << QStringLiteral("OpenCL 厂商: %1").arg(QString::fromLocal8Bit(dev.vendorName().c_str()));
+            lines << QCoreApplication::translate("SystemInfoWidget", "OpenCL 设备: %1").arg(QString::fromLocal8Bit(dev.name().c_str()));
+            lines << QCoreApplication::translate("SystemInfoWidget", "OpenCL 厂商: %1").arg(QString::fromLocal8Bit(dev.vendorName().c_str()));
         } else {
-            lines << QStringLiteral("OpenCL 设备: 未能创建 Context");
+            lines << QCoreApplication::translate("SystemInfoWidget", "OpenCL 设备: 未能创建 Context");
         }
     }
 
@@ -552,12 +552,12 @@ QString SystemInfoWidget::getFfmpegInfo() const
     }
 
     if (ffmpegExePath.isEmpty()) {
-        lines << QStringLiteral("ffmpeg 路径: 未找到（未使用系统 PATH）");
-        lines << QStringLiteral("ffmpeg 版本: 未知");
+        lines << tr("ffmpeg 路径: 未找到（未使用系统 PATH）");
+        lines << tr("ffmpeg 版本: 未知");
         return lines.join("\n");
     }
 
-    lines << QStringLiteral("ffmpeg 路径: %1").arg(ffmpegExePath);
+    lines << tr("ffmpeg 路径: %1").arg(ffmpegExePath);
 
     QString err;
     const QString raw = runAndCapture(ffmpegExePath, {QStringLiteral("-version")}, 2000, &err);
@@ -566,11 +566,11 @@ QString SystemInfoWidget::getFfmpegInfo() const
     }
 
     if (!ffmpegVersionLine.isEmpty()) {
-        lines << QStringLiteral("ffmpeg 版本: %1").arg(ffmpegVersionLine);
+        lines << tr("ffmpeg 版本: %1").arg(ffmpegVersionLine);
     } else if (!err.isEmpty()) {
-        lines << QStringLiteral("ffmpeg 版本: 获取失败（%1）").arg(err);
+        lines << tr("ffmpeg 版本: 获取失败（%1）").arg(err);
     } else {
-        lines << QStringLiteral("ffmpeg 版本: 未知");
+        lines << tr("ffmpeg 版本: 未知");
     }
 
     return lines.join("\n");

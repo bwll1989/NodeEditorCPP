@@ -11,6 +11,7 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -27,21 +28,21 @@ namespace Nodes
             auto *hostLayout = new QHBoxLayout(hostRow);
             hostLayout->setContentsMargins(0, 0, 0, 0);
             hostLayout->setSpacing(8);
-            hostLayout->addWidget(new QLabel(QStringLiteral("Host:")));
+            hostLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::PingInterface", "主机：")));
             hostEdit->setPlaceholderText(QStringLiteral("192.168.1.1"));
             hostEdit->setText(QStringLiteral("127.0.0.1"));
             hostLayout->addWidget(hostEdit, 1);
             layout->addWidget(hostRow);
 
-            enableCheckBox->setText(QStringLiteral("启用"));
+            enableCheckBox->setText(QCoreApplication::translate("Nodes::PingInterface", "启用"));
             enableCheckBox->setChecked(false);
-            enableCheckBox->setToolTip(QStringLiteral("开启后每 10 秒 ping 一次（与 ENABLE 端口相同）"));
+            enableCheckBox->setToolTip(QCoreApplication::translate("Nodes::PingInterface", "开启后每 10 秒 ping 一次（与 ENABLE 端口相同）"));
             layout->addWidget(enableCheckBox);
 
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("状态: 不可达"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::PingInterface", "状态: 不可达"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
             layout->addWidget(connectionLabel);
 
@@ -52,8 +53,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("状态: 可达")
-                                         : QStringLiteral("状态: 不可达"));
+                                         ? QCoreApplication::translate("Nodes::PingInterface", "状态: 可达")
+                                         : QCoreApplication::translate("Nodes::PingInterface", "状态: 不可达"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

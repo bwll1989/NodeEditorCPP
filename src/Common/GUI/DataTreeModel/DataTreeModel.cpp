@@ -251,10 +251,10 @@ void DataTreeModel::createTreeFromMap(const QVariantMap &data, TreeItem* parent,
         if (m_lazyLoadingEnabled && itemCount >= m_maxVisibleItems && depth == 0) {
             // 创建"显示更多"项目
             TreeItem* moreItem = new TreeItem;
-            moreItem->key = QString("... 还有 %1 项").arg(data.size() - itemCount);
+            moreItem->key = tr("... 还有 %1 项").arg(data.size() - itemCount);
             moreItem->value = QVariant();
             moreItem->valueType = "More";
-            moreItem->displayValue = "点击加载更多";
+            moreItem->displayValue = tr("点击加载更多");
             moreItem->parent = parent;
             moreItem->depth = depth;
             parent->children.append(moreItem);

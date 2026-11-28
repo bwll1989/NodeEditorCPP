@@ -9,6 +9,7 @@
 #include "QLabel"
 #include "QLayout"
 #include <QPushButton>
+#include <QCoreApplication>
 #include <QVariantMap>
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
@@ -40,10 +41,10 @@ class ImageConstInterface final : public QWidget{
         IntDragValueWidget *widthEdit=new IntDragValueWidget();
         IntDragValueWidget *heightEdit=new IntDragValueWidget();
         QLabel *display=new QLabel();
-        QPushButton *colorEditButton=new QPushButton("Color");
+        QPushButton *colorEditButton=new QPushButton(QCoreApplication::translate("Nodes::ImageConstInterface", "颜色"));
     private:
-        QLabel *sizeWidthLabel=new QLabel("Width: ");
-        QLabel *sizeHeightLabel=new QLabel("Height");
+        QLabel *sizeWidthLabel=new QLabel(QCoreApplication::translate("Nodes::ImageConstInterface", "宽度："));
+        QLabel *sizeHeightLabel=new QLabel(QCoreApplication::translate("Nodes::ImageConstInterface", "高度"));
 
 
     };

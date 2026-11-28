@@ -613,3 +613,64 @@ if(WIN32)
 elseif(UNIX)
 
 endif()
+
+# ==================== i18n 翻译管线（2026-11-28）====================
+# 单一 .qm 服务全程序（主程序 + 全部插件共用，context 按类名隔离）：
+#   flow_update_translations —— 手动运行：lupdate 扫 src/ + main*.cpp 更新 flow_en.ts
+#   flow_translations (ALL)  —— 每次构建：lrelease 编译全部 flow_<lang>.ts → bin/translations/
+# 源文语言 = 中文（tr("中文")），简中界面无需翻译文件；其余语言加载 flow_<lang>.qm。
+# 语言清单：en=英 ja=日 zh_TW=繁中(简→繁算法转换) fr=法
+set(FLOW_LANGUAGES en ja zh_TW fr)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS LinguistTools REQUIRED)
+if(NOT TARGET Qt${QT_VERSION_MAJOR}::lupdate OR NOT TARGET Qt${QT_VERSION_MAJOR}::lrelease)
+    # 兜底：个别版本不提供导入 target 时，从 Qt bin 目录手动定位
+    find_program(FLOW_LUPDATE_EXECUTABLE lupdate HINTS "${Qt${QT_VERSION_MAJOR}_DIR}/../../../bin")
+    find_program(FLOW_LRELEASE_EXECUTABLE lrelease HINTS "${Qt${QT_VERSION_MAJOR}_DIR}/../../../bin")
+    add_executable(Qt${QT_VERSION_MAJOR}::lupdate IMPORTED)
+    add_executable(Qt${QT_VERSION_MAJOR}::lrelease IMPORTED)
+    set_target_properties(Qt${QT_VERSION_MAJOR}::lupdate PROPERTIES IMPORTED_LOCATION "${FLOW_LUPDATE_EXECUTABLE}")
+    set_target_properties(Qt${QT_VERSION_MAJOR}::lrelease PROPERTIES IMPORTED_LOCATION "${FLOW_LRELEASE_EXECUTABLE}")
+endif()
+
+set(FLOW_TS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/translations")
+set(FLOW_TS_FILE "${FLOW_TS_DIR}/flow_en.ts")
+set(FLOW_QM_OUTPUT_DIR "${CMAKE_BINARY_DIR}/bin/translations")
+
+# 手动目标：界面字符串增删后运行（ninja flow_update_translations / cmake --build build --target flow_update_translations）
+add_custom_target(flow_update_translations
+    COMMAND Qt${QT_VERSION_MAJOR}::lupdate
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/nodeeditor/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/headless_main.cpp"
+        -ts "${FLOW_TS_FILE}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "lupdate: scanning src/ + main*.cpp -> flow_en.ts"
+    VERBATIM
+)
+
+# ALL 目标：.ts 变化时重编 .qm（lrelease 毫秒级，随构建零负担）。
+# 各语言 .ts 独立维护：flow_en.ts 由 lupdate 更新；其余语言为全量快照
+# （新增词条后需重新走翻译流程合并，lrelease 对缺失串回退源文中文）。
+set(FLOW_ALL_TS_FILES "")
+set(FLOW_QM_COMMANDS "")
+foreach(_lang ${FLOW_LANGUAGES})
+    list(APPEND FLOW_ALL_TS_FILES "${FLOW_TS_DIR}/flow_${_lang}.ts")
+    list(APPEND FLOW_QM_COMMANDS
+        COMMAND Qt${QT_VERSION_MAJOR}::lrelease "${FLOW_TS_DIR}/flow_${_lang}.ts" -qm "${FLOW_QM_OUTPUT_DIR}/flow_${_lang}.qm")
+endforeach()
+add_custom_target(flow_translations ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${FLOW_QM_OUTPUT_DIR}"
+    ${FLOW_QM_COMMANDS}
+    DEPENDS ${FLOW_ALL_TS_FILES}
+    COMMENT "lrelease: flow_{en,ja,zh_TW,fr}.ts -> bin/translations/"
+    VERBATIM
+)
+add_dependencies(${ProjectName} flow_translations)
+add_dependencies(${HeadlessProjectName} flow_translations)
+
+# 安装：.qm 随程序分发（RuntimeLoader 在 exe 同目录 translations/ 下查找）
+install(DIRECTORY "${FLOW_QM_OUTPUT_DIR}/"
+    DESTINATION translations
+    FILES_MATCHING PATTERN "*.qm"
+)

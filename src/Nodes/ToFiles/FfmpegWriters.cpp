@@ -1,5 +1,6 @@
 #include "FfmpegWriters.hpp"
 
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDebug>
 
@@ -91,7 +92,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
 {
     if (bgr.empty()) {
         if (error) {
-            *error = QStringLiteral("图像为空");
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "图像为空");
         }
         return false;
     }
@@ -105,7 +106,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
         cv::cvtColor(bgr, rgb, cv::COLOR_GRAY2RGB);
     } else {
         if (error) {
-            *error = QStringLiteral("不支持的图像通道数");
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "不支持的图像通道数");
         }
         return false;
     }
@@ -114,7 +115,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     const AVCodec* codec = avcodec_find_encoder(codecId);
     if (!codec) {
         if (error) {
-            *error = QStringLiteral("找不到图像编码器");
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "找不到图像编码器");
         }
         return false;
     }
@@ -122,7 +123,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     AVCodecContext* codecCtx = avcodec_alloc_context3(codec);
     if (!codecCtx) {
         if (error) {
-            *error = QStringLiteral("无法分配图像编码器");
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "无法分配图像编码器");
         }
         return false;
     }
@@ -135,7 +136,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     int ret = avcodec_open2(codecCtx, codec, nullptr);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("打开图像编码器失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "打开图像编码器失败: %1").arg(avErrorString(ret));
         }
         avcodec_free_context(&codecCtx);
         return false;
@@ -148,7 +149,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("分配图像帧失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "分配图像帧失败: %1").arg(avErrorString(ret));
         }
         av_frame_free(&frame);
         avcodec_free_context(&codecCtx);
@@ -161,7 +162,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
         SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!swsCtx) {
         if (error) {
-            *error = QStringLiteral("图像色彩转换失败");
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "图像色彩转换失败");
         }
         av_frame_free(&frame);
         avcodec_free_context(&codecCtx);
@@ -177,7 +178,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     av_frame_free(&frame);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("编码图像失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "编码图像失败: %1").arg(avErrorString(ret));
         }
         avcodec_free_context(&codecCtx);
         return false;
@@ -187,7 +188,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     ret = avcodec_receive_packet(codecCtx, packet);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("获取图像数据包失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "获取图像数据包失败: %1").arg(avErrorString(ret));
         }
         av_packet_free(&packet);
         avcodec_free_context(&codecCtx);
@@ -197,7 +198,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) {
-            *error = QStringLiteral("无法写入文件: %1").arg(filePath);
+            *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "无法写入文件: %1").arg(filePath);
         }
         av_packet_free(&packet);
         avcodec_free_context(&codecCtx);
@@ -211,7 +212,7 @@ bool FfmpegImageWriter::saveImage(const cv::Mat& bgr, const QString& filePath, Q
     avcodec_free_context(&codecCtx);
 
     if (!ok && error) {
-        *error = QStringLiteral("写入图像文件失败");
+        *error = QCoreApplication::translate("Nodes::FfmpegImageWriter", "写入图像文件失败");
     }
     return ok;
 }
@@ -230,7 +231,7 @@ bool FfmpegVideoEncoder::drainEncoderPackets(QString* error)
         }
         if (ret < 0) {
             if (error) {
-                *error = QStringLiteral("接收视频包失败: %1").arg(avErrorString(ret));
+                *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "接收视频包失败: %1").arg(avErrorString(ret));
             }
             return false;
         }
@@ -254,7 +255,7 @@ bool FfmpegVideoEncoder::writePacket(AVPacket* packet, QString* error)
     packet->stream_index = stream_->index;
     const int ret = av_interleaved_write_frame(fmtCtx_, packet);
     if (ret < 0 && error) {
-        *error = QStringLiteral("写入视频帧失败: %1").arg(avErrorString(ret));
+        *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "写入视频帧失败: %1").arg(avErrorString(ret));
     }
     return ret >= 0;
 }
@@ -267,7 +268,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     height = (height / 2) * 2;
     if (width <= 0 || height <= 0) {
         if (error) {
-            *error = QStringLiteral("无效的视频尺寸");
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "无效的视频尺寸");
         }
         return false;
     }
@@ -278,7 +279,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     }
     if (!codec) {
         if (error) {
-            *error = QStringLiteral("找不到视频编码器");
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "找不到视频编码器");
         }
         return false;
     }
@@ -286,7 +287,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     int ret = avformat_alloc_output_context2(&fmtCtx_, nullptr, nullptr, filePath.toUtf8().constData());
     if (ret < 0 || !fmtCtx_) {
         if (error) {
-            *error = QStringLiteral("创建输出上下文失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "创建输出上下文失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -295,7 +296,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     stream_ = avformat_new_stream(fmtCtx_, codec);
     if (!stream_) {
         if (error) {
-            *error = QStringLiteral("创建视频流失败");
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "创建视频流失败");
         }
         close();
         return false;
@@ -327,7 +328,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     ret = avcodec_open2(codecCtx_, codec, nullptr);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("打开视频编码器失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "打开视频编码器失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -336,7 +337,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     ret = avcodec_parameters_from_context(stream_->codecpar, codecCtx_);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("复制视频编码参数失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "复制视频编码参数失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -350,7 +351,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
         ret = avio_open(&fmtCtx_->pb, filePath.toUtf8().constData(), AVIO_FLAG_WRITE);
         if (ret < 0) {
             if (error) {
-                *error = QStringLiteral("打开输出文件失败: %1").arg(avErrorString(ret));
+                *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "打开输出文件失败: %1").arg(avErrorString(ret));
             }
             close();
             return false;
@@ -360,7 +361,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     ret = avformat_write_header(fmtCtx_, nullptr);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("写入视频头失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "写入视频头失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -373,7 +374,7 @@ bool FfmpegVideoEncoder::open(const QString& filePath, int width, int height, do
     ret = av_frame_get_buffer(frame_, 0);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("分配视频帧失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "分配视频帧失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -390,7 +391,7 @@ bool FfmpegVideoEncoder::writeFrame(const cv::Mat& bgr, QString* error)
 {
     if (!isOpen() || bgr.empty()) {
         if (error) {
-            *error = QStringLiteral("视频编码器未打开或图像为空");
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "视频编码器未打开或图像为空");
         }
         return false;
     }
@@ -409,7 +410,7 @@ bool FfmpegVideoEncoder::writeFrame(const cv::Mat& bgr, QString* error)
         srcHeight_ = bgr.rows;
         if (!swsCtx_) {
             if (error) {
-                *error = QStringLiteral("视频色彩转换失败");
+                *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "视频色彩转换失败");
             }
             return false;
         }
@@ -434,7 +435,7 @@ bool FfmpegVideoEncoder::writeFrame(const cv::Mat& bgr, QString* error)
     }
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("发送视频帧失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegVideoEncoder", "发送视频帧失败: %1").arg(avErrorString(ret));
         }
         return false;
     }
@@ -495,7 +496,7 @@ bool FfmpegAudioEncoder::drainEncoderPackets(QString* error)
         }
         if (ret < 0) {
             if (error) {
-                *error = QStringLiteral("接收音频包失败: %1").arg(avErrorString(ret));
+                *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "接收音频包失败: %1").arg(avErrorString(ret));
             }
             return false;
         }
@@ -518,7 +519,7 @@ bool FfmpegAudioEncoder::encodeFrame(QString* error)
     }
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("发送音频帧失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "发送音频帧失败: %1").arg(avErrorString(ret));
         }
         return false;
     }
@@ -531,7 +532,7 @@ bool FfmpegAudioEncoder::writePacket(AVPacket* packet, QString* error)
     packet->stream_index = stream_->index;
     const int ret = av_interleaved_write_frame(fmtCtx_, packet);
     if (ret < 0 && error) {
-        *error = QStringLiteral("写入音频帧失败: %1").arg(avErrorString(ret));
+        *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "写入音频帧失败: %1").arg(avErrorString(ret));
     }
     return ret >= 0;
 }
@@ -570,7 +571,7 @@ bool FfmpegAudioEncoder::ensureResampler(int sampleRate, int channels, int bitsP
     }
     if (ret < 0 || !swrCtx_) {
         if (error) {
-            *error = QStringLiteral("创建音频重采样器失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "创建音频重采样器失败: %1").arg(avErrorString(ret));
         }
         return false;
     }
@@ -578,7 +579,7 @@ bool FfmpegAudioEncoder::ensureResampler(int sampleRate, int channels, int bitsP
     const int initRet = swr_init(swrCtx_);
     if (initRet < 0) {
         if (error) {
-            *error = QStringLiteral("初始化音频重采样器失败: %1").arg(avErrorString(initRet));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "初始化音频重采样器失败: %1").arg(avErrorString(initRet));
         }
         swr_free(&swrCtx_);
         return false;
@@ -595,7 +596,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
 
     if (sampleRate <= 0 || channels <= 0) {
         if (error) {
-            *error = QStringLiteral("无效的音频参数");
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "无效的音频参数");
         }
         return false;
     }
@@ -604,7 +605,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     const AVCodec* codec = avcodec_find_encoder(codecId);
     if (!codec) {
         if (error) {
-            *error = QStringLiteral("找不到音频编码器");
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "找不到音频编码器");
         }
         return false;
     }
@@ -612,7 +613,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     int ret = avformat_alloc_output_context2(&fmtCtx_, nullptr, nullptr, filePath.toUtf8().constData());
     if (ret < 0 || !fmtCtx_) {
         if (error) {
-            *error = QStringLiteral("创建音频输出上下文失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "创建音频输出上下文失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -621,7 +622,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     stream_ = avformat_new_stream(fmtCtx_, codec);
     if (!stream_) {
         if (error) {
-            *error = QStringLiteral("创建音频流失败");
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "创建音频流失败");
         }
         close();
         return false;
@@ -642,7 +643,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     ret = avcodec_open2(codecCtx_, codec, nullptr);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("打开音频编码器失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "打开音频编码器失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -651,7 +652,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     ret = avcodec_parameters_from_context(stream_->codecpar, codecCtx_);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("复制音频编码参数失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "复制音频编码参数失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -661,7 +662,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
         ret = avio_open(&fmtCtx_->pb, filePath.toUtf8().constData(), AVIO_FLAG_WRITE);
         if (ret < 0) {
             if (error) {
-                *error = QStringLiteral("打开音频输出文件失败: %1").arg(avErrorString(ret));
+                *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "打开音频输出文件失败: %1").arg(avErrorString(ret));
             }
             close();
             return false;
@@ -671,7 +672,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     ret = avformat_write_header(fmtCtx_, nullptr);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("写入音频头失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "写入音频头失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -687,7 +688,7 @@ bool FfmpegAudioEncoder::open(const QString& filePath, int sampleRate, int chann
     ret = av_frame_get_buffer(frame_, 0);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("分配音频帧失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "分配音频帧失败: %1").arg(avErrorString(ret));
         }
         close();
         return false;
@@ -704,7 +705,7 @@ bool FfmpegAudioEncoder::writeFrame(const AudioFrame& audioFrame, QString* error
 {
     if (!isOpen() || audioFrame.data.isEmpty()) {
         if (error) {
-            *error = QStringLiteral("音频编码器未打开或数据为空");
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "音频编码器未打开或数据为空");
         }
         return false;
     }
@@ -718,7 +719,7 @@ bool FfmpegAudioEncoder::writeFrame(const AudioFrame& audioFrame, QString* error
     const int samplesPerChannel = totalSamples / qMax(1, audioFrame.channels);
     if (samplesPerChannel <= 0) {
         if (error) {
-            *error = QStringLiteral("音频样本数无效");
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "音频样本数无效");
         }
         return false;
     }
@@ -727,7 +728,7 @@ bool FfmpegAudioEncoder::writeFrame(const AudioFrame& audioFrame, QString* error
     int ret = swr_convert(swrCtx_, nullptr, 0, srcData, samplesPerChannel);
     if (ret < 0) {
         if (error) {
-            *error = QStringLiteral("音频重采样失败: %1").arg(avErrorString(ret));
+            *error = QCoreApplication::translate("Nodes::FfmpegAudioEncoder", "音频重采样失败: %1").arg(avErrorString(ret));
         }
         return false;
     }

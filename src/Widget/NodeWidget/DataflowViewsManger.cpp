@@ -104,7 +104,7 @@ void DataflowViewsManger::ensureEditorUi()
     if (!wantsUi() || !m_DockManager || _dockWidget)
         return;
 
-    _dockWidget = m_DockManager->createDockWidget(QStringLiteral("节点编辑"));
+    _dockWidget = m_DockManager->createDockWidget(tr("节点编辑"));
     _dockWidget->setObjectName(QStringLiteral("dataflowEditor"));
     _dockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
 
@@ -124,13 +124,13 @@ void DataflowViewsManger::ensureEditorUi()
     _pathAction = new QAction(QStringLiteral("dataflow"), _dockWidget);
     _pathAction->setObjectName(QStringLiteral("dataflowNavPath"));
     _pathAction->setMenu(_pathMenu);
-    _pathAction->setToolTip(QStringLiteral("当前数据流路径"));
+    _pathAction->setToolTip(tr("当前数据流路径"));
 
     _backAction = new QAction(titleBarNavIcon(QStringLiteral(":/icons/icons/arror_left.png")),
                               QString(),
                               _dockWidget);
     _backAction->setObjectName(QStringLiteral("dataflowNavBack"));
-    _backAction->setToolTip(QStringLiteral("上一级"));
+    _backAction->setToolTip(tr("上一级"));
     _backAction->setVisible(false);
     connect(_backAction, &QAction::triggered, this, &DataflowViewsManger::goBack);
 
@@ -138,12 +138,12 @@ void DataflowViewsManger::ensureEditorUi()
                               QString(),
                               _dockWidget);
     _homeAction->setObjectName(QStringLiteral("dataflowNavHome"));
-    _homeAction->setToolTip(QStringLiteral("返回主页"));
+    _homeAction->setToolTip(tr("返回主页"));
     _homeAction->setVisible(false);
     connect(_homeAction, &QAction::triggered, this, &DataflowViewsManger::goHome);
 
     QMenu *optionsMenu = new QMenu(_dockWidget);
-    optionsMenu->setTitle(QObject::tr("Options"));
+    optionsMenu->setTitle(QObject::tr("选项"));
     optionsMenu->setToolTip(optionsMenu->title());
     optionsMenu->setIcon(QIcon(":/ads_icons/ads_icons/custom-menu-button.svg"));
     auto *menuAction = optionsMenu->menuAction();
@@ -152,25 +152,25 @@ void DataflowViewsManger::ensureEditorUi()
     _dockWidget->setTitleBarActions({_pathAction, _backAction, _homeAction, menuAction});
 
     auto *clearAct = optionsMenu->addAction(QIcon(":/icons/icons/clear.png"),
-                                            QObject::tr("Clear Dataflow"));
+                                            QObject::tr("清空数据流"));
     connect(clearAct, &QAction::triggered, this, [this]() {
         if (auto *scene = currentScene())
             scene->clearScene();
     });
 
     auto *lockAct = optionsMenu->addAction(QIcon(":/icons/icons/lock.png"),
-                                           QObject::tr("Lock Dataflow"));
+                                           QObject::tr("锁定数据流"));
     connect(lockAct, &QAction::triggered, this, [this, lockAct]() {
         auto *model = currentModel();
         if (!model)
             return;
         model->setNodesLocked(!model->getNodesLocked());
-        lockAct->setText(model->getNodesLocked() ? QObject::tr("Unlock Dataflow")
-                                                 : QObject::tr("Lock Dataflow"));
+        lockAct->setText(model->getNodesLocked() ? QObject::tr("解锁数据流")
+                                                 : QObject::tr("锁定数据流"));
     });
 
     auto *searchAct = optionsMenu->addAction(QIcon(":/icons/icons/search.png"),
-                                             QObject::tr("Search Node"));
+                                             QObject::tr("搜索节点"));
     connect(searchAct, &QAction::triggered, this, [this]() {
         if (auto *scene = currentScene())
             scene->showSearchNodeBar();

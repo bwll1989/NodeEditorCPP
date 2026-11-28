@@ -12,6 +12,7 @@
 #include <chrono>
 #include <future>
 #include <QDir>
+#include <QCoreApplication>
 #include <thread>
 
 using namespace rp::standalone::aurora;
@@ -329,21 +330,21 @@ QVariantList AuroraSWorker::positionToList(const slamtec_aurora_sdk_pose_se3_t& 
 QString AuroraSWorker::localizationStateText(const QString& state)
 {
     if (state == QStringLiteral("localized")) {
-        return QStringLiteral("已定位");
+        return QCoreApplication::translate("AuroraSWorker", "已定位");
     }
     if (state == QStringLiteral("relocalizing")) {
-        return QStringLiteral("重定位中");
+        return QCoreApplication::translate("AuroraSWorker", "重定位中");
     }
     if (state == QStringLiteral("tracking_lost")) {
-        return QStringLiteral("跟踪丢失");
+        return QCoreApplication::translate("AuroraSWorker", "跟踪丢失");
     }
     if (state == QStringLiteral("relocalization_failed")) {
-        return QStringLiteral("重定位失败");
+        return QCoreApplication::translate("AuroraSWorker", "重定位失败");
     }
     if (state == QStringLiteral("reconnecting")) {
-        return QStringLiteral("重连中");
+        return QCoreApplication::translate("AuroraSWorker", "重连中");
     }
-    return QStringLiteral("未知");
+    return QCoreApplication::translate("AuroraSWorker", "未知");
 }
 
 QVariantMap AuroraSWorker::localizationStatusToMap(const QString& state)
@@ -405,7 +406,7 @@ bool AuroraSWorker::uploadMap(const QString& mapFilePath)
     const QString resolvedPath = resolveMapFilePath(trimmedPath);
     const QFileInfo fileInfo(resolvedPath);
     if (!fileInfo.exists() || !fileInfo.isFile()) {
-        emit errorOccurred(QStringLiteral("地图文件不存在: %1").arg(resolvedPath));
+        emit errorOccurred(tr("地图文件不存在: %1").arg(resolvedPath));
         return false;
     }
 
@@ -421,7 +422,7 @@ bool AuroraSWorker::uploadMap(const QString& mapFilePath)
     if (!m_sdk->mapManager.startUploadSession(absolutePath.constData(),
                                               resultCallBack,
                                               &resultPromise)) {
-        emit errorOccurred(QStringLiteral("启动地图上传失败"));
+        emit errorOccurred(tr("启动地图上传失败"));
         return false;
     }
 
@@ -434,7 +435,7 @@ bool AuroraSWorker::uploadMap(const QString& mapFilePath)
 
         slamtec_aurora_sdk_mapstorage_session_status_t status{};
         if (!m_sdk->mapManager.querySessionStatus(status)) {
-            emit errorOccurred(QStringLiteral("查询地图上传进度失败"));
+            emit errorOccurred(tr("查询地图上传进度失败"));
             m_sdk->mapManager.abortSession();
             return false;
         }
@@ -452,7 +453,7 @@ bool AuroraSWorker::uploadMap(const QString& mapFilePath)
     }
 
     if (!resultFuture.get()) {
-        emit errorOccurred(QStringLiteral("地图上传失败"));
+        emit errorOccurred(tr("地图上传失败"));
         return false;
     }
 
@@ -512,7 +513,7 @@ bool AuroraSWorker::connectToDevice(const QString& host,
 {
     const QString connection = host.trimmed();
     if (connection.isEmpty()) {
-        emit errorOccurred(QStringLiteral("设备地址不能为空"));
+        emit errorOccurred(tr("设备地址不能为空"));
         return false;
     }
 
@@ -552,7 +553,7 @@ bool AuroraSWorker::startPoseAugmentationSession()
 
     slamtec_aurora_sdk_errorcode_t errcode = SLAMTEC_AURORA_SDK_ERRORCODE_OK;
     if (!m_sdk->dataProvider.startPoseAugmentation(m_poseMode, config, &errcode)) {
-        emit errorOccurred(QStringLiteral("启动姿态增强失败，错误码: %1").arg(errcode));
+        emit errorOccurred(tr("启动姿态增强失败，错误码: %1").arg(errcode));
         return false;
     }
 
@@ -582,7 +583,7 @@ void AuroraSWorker::reinitializeSession(const QString& mapFilePath)
     m_sdk->dataProvider.stopPoseAugmentation();
 
     if (!initializeSession(m_sessionMapFilePath, false)) {
-        emit errorOccurred(QStringLiteral("重新初始化失败"));
+        emit errorOccurred(tr("重新初始化失败"));
         return;
     }
 
@@ -601,7 +602,7 @@ bool AuroraSWorker::runConnectedSession(const QString& host, const QString& mapF
     m_listener = std::make_unique<SdkListener>(this);
     m_sdk = RemoteSDK::CreateSession(m_listener.get());
     if (m_sdk == nullptr) {
-        emit errorOccurred(QStringLiteral("创建 Aurora SDK 会话失败"));
+        emit errorOccurred(tr("创建 Aurora SDK 会话失败"));
         m_listener.reset();
         m_shouldRetry.store(true);
         return false;
@@ -615,7 +616,7 @@ bool AuroraSWorker::runConnectedSession(const QString& host, const QString& mapF
     }
 
     if (!m_sdk->connect(selectedDesc)) {
-        emit errorOccurred(QStringLiteral("连接 Aurora 设备失败"));
+        emit errorOccurred(tr("连接 Aurora 设备失败"));
         cleanupSdk();
         emit connectionChanged(false);
         m_shouldRetry.store(true);

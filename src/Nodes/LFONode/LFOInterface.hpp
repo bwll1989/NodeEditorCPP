@@ -15,6 +15,7 @@
 
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include "LFOWaveMath.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -29,7 +30,7 @@ namespace Nodes
             setMinimumHeight(110);
             setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
             setCursor(Qt::CrossCursor);
-            setToolTip(QStringLiteral("横向拖动调整相位，纵向拖动调整偏移"));
+            setToolTip(QCoreApplication::translate("Nodes::LFOWavePreview", "横向拖动调整相位，纵向拖动调整偏移"));
         }
 
         void setWave(int method,
@@ -231,20 +232,20 @@ namespace Nodes
             bias = new FloatDragValueWidget(this);
             phase = new FloatDragValueWidget(this);
             sampleRate = new FloatDragValueWidget(this);
-            loop = new QCheckBox(QStringLiteral("限制周期"), this);
+            loop = new QCheckBox(QCoreApplication::translate("Nodes::LFOInterface", "限制周期"), this);
             loopCount = new FloatDragValueWidget(this);
-            play = new QPushButton(QStringLiteral("Play"), this);
+            play = new QPushButton(QCoreApplication::translate("Nodes::LFOInterface", "播放"), this);
             play->setCheckable(true);
             play->setChecked(false);
-            reset = new QPushButton(QStringLiteral("Reset"), this);
+            reset = new QPushButton(QCoreApplication::translate("Nodes::LFOInterface", "重置"), this);
 
             // 顺序对齐 TouchDesigner LFO CHOP
-            method->addItem(QStringLiteral("Sine"), static_cast<int>(LFOWaveType::Sine));
-            method->addItem(QStringLiteral("Gaussian"), static_cast<int>(LFOWaveType::Gaussian));
-            method->addItem(QStringLiteral("Triangle"), static_cast<int>(LFOWaveType::Triangle));
-            method->addItem(QStringLiteral("Ramp"), static_cast<int>(LFOWaveType::Ramp));
-            method->addItem(QStringLiteral("Square"), static_cast<int>(LFOWaveType::Square));
-            method->addItem(QStringLiteral("Pulse"), static_cast<int>(LFOWaveType::Pulse));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "正弦"), static_cast<int>(LFOWaveType::Sine));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "高斯"), static_cast<int>(LFOWaveType::Gaussian));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "三角"), static_cast<int>(LFOWaveType::Triangle));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "斜坡"), static_cast<int>(LFOWaveType::Ramp));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "方波"), static_cast<int>(LFOWaveType::Square));
+            method->addItem(QCoreApplication::translate("Nodes::LFOInterface", "脉冲"), static_cast<int>(LFOWaveType::Pulse));
 
             period->setRange(0.01, 3600.0);
             period->setValue(1.0);
@@ -267,7 +268,7 @@ namespace Nodes
             loop->setChecked(false);
             loopCount->setRange(0.01, 100000.0);
             loopCount->setValue(1.0);
-            loopCount->setSuffix(QStringLiteral(" 周期"));
+            loopCount->setSuffix(QCoreApplication::translate("Nodes::LFOInterface", " 周期"));
             loopCount->setEnabled(false);
 
             connect(loop, &QCheckBox::toggled, loopCount, &QWidget::setEnabled);
@@ -317,25 +318,25 @@ namespace Nodes
             int row = 0;
             layout->addWidget(preview, row++, 0, 1, 3);
 
-            layout->addWidget(new QLabel(QStringLiteral("波形"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "波形"), this), row, 0);
             layout->addWidget(method, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("周期 (s)"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "周期 (s)"), this), row, 0);
             layout->addWidget(period, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("振幅"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "振幅"), this), row, 0);
             layout->addWidget(amplitude, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("偏移"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "偏移"), this), row, 0);
             layout->addWidget(offset, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("偏置"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "偏置"), this), row, 0);
             layout->addWidget(bias, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("相位"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "相位"), this), row, 0);
             layout->addWidget(phase, row++, 1, 1, 2);
 
-            layout->addWidget(new QLabel(QStringLiteral("采样率"), this), row, 0);
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::LFOInterface", "采样率"), this), row, 0);
             layout->addWidget(sampleRate, row++, 1, 1, 2);
 
             layout->addWidget(loop, row, 0);

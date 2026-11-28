@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "candleLight / gs_usb CAN 收发"
+#define PLUGIN_DESCRIBE QT_TRANSLATE_NOOP("Plugin", "candleLight / gs_usb CAN 收发")
 #define PLUGIN_TAG "Connect"
 
 class DLL_EXPORT Plugin
@@ -31,7 +31,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; }
     QString version() const override { return PLUGIN_VERSION; }
-    QString describe() const override { return PLUGIN_DESCRIBE; }
+    QString describe() const override { return tr(PLUGIN_DESCRIBE); }
     QString tag() const override { return PLUGIN_TAG; }
     bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;

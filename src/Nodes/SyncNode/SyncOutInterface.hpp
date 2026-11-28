@@ -12,6 +12,7 @@
 #include <QWidget>
 
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes {
 
@@ -28,26 +29,26 @@ public:
         auto *portLayout = new QHBoxLayout(portRow);
         portLayout->setContentsMargins(0, 0, 0, 0);
         portLayout->setSpacing(8);
-        portLayout->addWidget(new QLabel(QStringLiteral("Listen Port:")));
+        portLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::SyncOutInterface", "监听端口：")));
         portSpin->setRange(1, 65535);
         portSpin->setValue(9100);
         portLayout->addWidget(portSpin, 1);
         layout->addWidget(portRow);
 
-        activeCheck->setText(QStringLiteral("启用"));
+        activeCheck->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "启用"));
         activeCheck->setChecked(true);
-        activeCheck->setToolTip(QStringLiteral("关闭后停止 TCP 监听"));
+        activeCheck->setToolTip(QCoreApplication::translate("Nodes::SyncOutInterface", "关闭后停止 TCP 监听"));
         layout->addWidget(activeCheck);
 
         connectionLabel->setFlat(true);
         connectionLabel->setCheckable(true);
         connectionLabel->setEnabled(false);
-        connectionLabel->setText(QStringLiteral("状态: 未监听"));
+        connectionLabel->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "状态: 未监听"));
         connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
         layout->addWidget(connectionLabel);
 
-        pushButton->setText(QStringLiteral("Push"));
-        pushButton->setToolTip(QStringLiteral("向所有已连接的 Sync In 重发口数与缓存值"));
+        pushButton->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "推送"));
+        pushButton->setToolTip(QCoreApplication::translate("Nodes::SyncOutInterface", "向所有已连接的 Sync In 重发口数与缓存值"));
         layout->addWidget(pushButton);
 
         setMinimumWidth(240);
@@ -57,18 +58,18 @@ public:
     {
         if (!listening) {
             connectionLabel->setChecked(false);
-            connectionLabel->setText(QStringLiteral("状态: 未监听"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "状态: 未监听"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
             return;
         }
         if (clientCount <= 0) {
             connectionLabel->setChecked(false);
-            connectionLabel->setText(QStringLiteral("状态: 等待连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "状态: 等待连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: orange; font-weight: bold;"));
             return;
         }
         connectionLabel->setChecked(true);
-        connectionLabel->setText(QStringLiteral("状态: 已连接 (%1)").arg(clientCount));
+        connectionLabel->setText(QCoreApplication::translate("Nodes::SyncOutInterface", "状态: 已连接 (%1)").arg(clientCount));
         connectionLabel->setStyleSheet(QStringLiteral("color: green; font-weight: bold;"));
     }
 

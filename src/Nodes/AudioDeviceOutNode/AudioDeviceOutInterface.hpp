@@ -24,8 +24,8 @@ namespace Nodes
 
             // 驱动选择器
             driverSelector = new QComboBox(this);
-            driverSelector->setToolTip(tr("Select Audio Driver Type"));
-            driverSelector->addItem("All Drivers", -1);  // 显示所有驱动
+            driverSelector->setToolTip(tr("选择音频驱动类型"));
+            driverSelector->addItem(tr("所有驱动"), -1);  // 显示所有驱动
             driverSelector->addItem("WASAPI", 0);
             driverSelector->addItem("DirectSound", 1);
             driverSelector->addItem("ASIO", 2);
@@ -34,12 +34,12 @@ namespace Nodes
 
             // 设备选择器
             deviceSelector = new QComboBox(this);
-            deviceSelector->setToolTip(tr("Select Audio Output Device"));
+            deviceSelector->setToolTip(tr("选择音频输出设备"));
 
             // 布局
-            mainLayout->addWidget(new QLabel("Audio Driver:", this));
+            mainLayout->addWidget(new QLabel(tr("音频驱动："), this));
             mainLayout->addWidget(driverSelector);
-            mainLayout->addWidget(new QLabel("Output Device:", this));
+            mainLayout->addWidget(new QLabel(tr("输出设备："), this));
             mainLayout->addWidget(deviceSelector);
             mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
             setLayout(mainLayout);

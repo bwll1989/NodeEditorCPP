@@ -53,11 +53,11 @@ public:
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表漏本类型落兜底「属性」——
     /// 表漂移实证，P2-B 下放后由本声明纠回）
-    QString clipDisplayName() const override { return QStringLiteral("灯光"); }
+    QString clipDisplayName() const override { return tr("灯光"); }
     /// 无媒体绑定语义：DMX 视频在专属页选择（媒体区隐藏 + 绑定行说明）
     bool hasMediaBinding() const override { return false; }
     QString bindingHint() const override {
-        return QStringLiteral("（灯光片段：DMX 视频在专属页选择）");
+        return tr("（灯光片段：DMX 视频在专属页选择）");
     }
 
     // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----

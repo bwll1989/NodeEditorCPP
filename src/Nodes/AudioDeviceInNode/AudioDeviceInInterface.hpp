@@ -29,11 +29,11 @@ public:
         volume_spinbox->setDecimals(1);
         volume_spinbox->setSingleStep(1.0);
         // 设置设备选择器
-        device_selector->addItem("正在加载设备...");
+        device_selector->addItem(tr("正在加载设备..."));
         // 布局
-        layout->addWidget(new QLabel("输入设备:"), 0, 0, 1, 1);
+        layout->addWidget(new QLabel(tr("输入设备:")), 0, 0, 1, 1);
         layout->addWidget(device_selector, 0, 1, 1, 2);
-        layout->addWidget(new QLabel("音量:"), 1, 0, 1, 1);
+        layout->addWidget(new QLabel(tr("音量:")), 1, 0, 1, 1);
         layout->addWidget(volume_spinbox, 1, 1, 1, 2);
         layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 2, 0, 1, 2);
         layout->setRowStretch(2, 1);

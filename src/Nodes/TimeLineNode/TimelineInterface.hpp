@@ -5,6 +5,7 @@
 #pragma once
 
 #include "QWidget"
+#include <QCoreApplication>
 #include "QGridLayout"
 #include "QPushButton"
 #include "QTimeEdit"
@@ -16,6 +17,8 @@
 using namespace std;
 namespace Nodes
 {
+    // 【i18n】Nodes 命名空间类：moc context 带命名空间，裸 tr() 查 .qm 会 MISS，
+    // 统一显式 QCoreApplication::translate（context=Nodes::TimelineInterface）。
     class TimelineInterface: public QWidget{
         Q_OBJECT
         public:
@@ -26,7 +29,7 @@ namespace Nodes
 
             this->setLayout(mainlayout);
             this->layout()->setContentsMargins(0,0,0,0);
-            startButton = new QPushButton(tr("启动"), this);
+            startButton = new QPushButton(QCoreApplication::translate("Nodes::TimelineInterface", "启动"), this);
             statusLabel = new QTimeEdit(this);
             statusLabel->setDisplayFormat("hh:mm:ss:zzz");
             statusLabel->setAlignment(Qt::AlignCenter);
@@ -42,8 +45,8 @@ namespace Nodes
             mainlayout->addWidget(startButton,1,0,1,3);
             startButton->setCheckable(true);
 
-            editButton = new QPushButton(tr("显示编辑器"), this);
-            editButton->setToolTip(tr("打开时间轴编辑窗口"));
+            editButton = new QPushButton(QCoreApplication::translate("Nodes::TimelineInterface", "显示编辑器"), this);
+            editButton->setToolTip(QCoreApplication::translate("Nodes::TimelineInterface", "打开时间轴编辑窗口"));
             mainlayout->addWidget(editButton,2,0,1,3);
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
@@ -71,7 +74,7 @@ namespace Nodes
                 return;
             }
             timeline->setParent(nullptr);
-            timeline->setWindowTitle(tr("时间轴编辑器"));
+            timeline->setWindowTitle(QCoreApplication::translate("Nodes::TimelineInterface", "时间轴编辑器"));
             timeline->setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint);
             timeline->setAttribute(Qt::WA_DeleteOnClose, false);
             timeline->setAttribute(Qt::WA_QuitOnClose, false);
@@ -79,7 +82,7 @@ namespace Nodes
             timeline->show();
             timeline->activateWindow();
             timeline->raise();
-            editButton->setText(tr("隐藏编辑器"));
+            editButton->setText(QCoreApplication::translate("Nodes::TimelineInterface", "隐藏编辑器"));
         }
 
         ~TimelineInterface() override {
@@ -123,13 +126,13 @@ namespace Nodes
         void onPlaybackStateChanged(bool isPlaying) {
             QSignalBlocker blocker(startButton);
             startButton->setChecked(isPlaying);
-            startButton->setText(isPlaying ? tr("停止") : tr("启动"));
+            startButton->setText(isPlaying ? QCoreApplication::translate("Nodes::TimelineInterface", "停止") : QCoreApplication::translate("Nodes::TimelineInterface", "启动"));
         }
 
         void onPlaybackFinished() {
             QSignalBlocker blocker(startButton);
             startButton->setChecked(false);
-            startButton->setText(tr("启动"));
+            startButton->setText(QCoreApplication::translate("Nodes::TimelineInterface", "启动"));
             statusLabel->setTime(QTime(0, 0, 0, 0));
         }
 
@@ -140,7 +143,7 @@ namespace Nodes
             }
             timeline->hide();
             timeline->setParent(this);
-            editButton->setText(tr("显示编辑器"));
+            editButton->setText(QCoreApplication::translate("Nodes::TimelineInterface", "显示编辑器"));
         }
 
     public:

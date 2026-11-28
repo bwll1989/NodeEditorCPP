@@ -34,6 +34,7 @@
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "SlideShowInterface.hpp"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -255,14 +256,14 @@ namespace Nodes
             QNetworkReply *reply = m_manager->get(request);
             if (!reply) {
                 setConnected(false);
-                setStatus(QStringLiteral("查询失败"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "查询失败"));
                 return;
             }
 
             reply->setProperty("op", QStringLiteral("content/get"));
             m_pendingFetch = true;
             if (!m_connected) {
-                setStatus(QStringLiteral("正在连接..."));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "正在连接..."));
             }
         }
 
@@ -297,7 +298,7 @@ namespace Nodes
 
             syncParametersFromWidget();
             if (index < 0) {
-                setStatus(QStringLiteral("无效的播放列表序号"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "无效的播放列表序号"));
                 publishDone(false);
                 return;
             }
@@ -308,7 +309,7 @@ namespace Nodes
 
             const QString name = playlistNameAtIndex(index);
             if (name.isEmpty()) {
-                setStatus(QStringLiteral("序号 %1 无对应播放列表").arg(index));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "序号 %1 无对应播放列表").arg(index));
                 publishDone(false);
                 return;
             }
@@ -327,7 +328,7 @@ namespace Nodes
 
             QNetworkReply *reply = m_manager->put(request, QByteArray());
             if (!reply) {
-                setStatus(QStringLiteral("请求失败"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "请求失败"));
                 publishDone(false);
                 return;
             }
@@ -338,7 +339,7 @@ namespace Nodes
             m_pendingUpdateIndex = true;
             m_playlistName = name;
             syncPlayingHighlight();
-            setStatus(QStringLiteral("切换 [%1] \"%2\"...").arg(index).arg(name));
+            setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "切换 [%1] \"%2\"...").arg(index).arg(name));
             AbstractDelegateModel::stateFeedBack("/play", true);
         }
 
@@ -458,7 +459,7 @@ namespace Nodes
 
         void setStatus(const QString &text)
         {
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::SlideShowDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)
@@ -486,14 +487,14 @@ namespace Nodes
             const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (!isHttpSuccess(reply, statusCode)) {
                 setConnected(false);
-                setStatus(QStringLiteral("连接失败 HTTP %1").arg(statusCode));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "连接失败 HTTP %1").arg(statusCode));
                 return;
             }
 
             const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             if (!doc.isObject()) {
                 setConnected(false);
-                setStatus(QStringLiteral("返回无效 JSON"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "返回无效 JSON"));
                 return;
             }
 
@@ -501,7 +502,7 @@ namespace Nodes
             if (root.contains(QStringLiteral("success"))
                 && !root.value(QStringLiteral("success")).toBool()) {
                 setConnected(false);
-                setStatus(QStringLiteral("业务失败"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "业务失败"));
                 return;
             }
 
@@ -554,7 +555,7 @@ namespace Nodes
             }
 
             syncPlayingHighlight();
-            setStatus(QStringLiteral("已加载 %1 个播放列表").arg(loadedCount));
+            setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "已加载 %1 个播放列表").arg(loadedCount));
         }
 
         void handleSetFinished(QNetworkReply *reply)
@@ -578,9 +579,9 @@ namespace Nodes
             if (!httpOk) {
                 setStatus(QStringLiteral("HTTP %1 %2").arg(statusCode).arg(reply->errorString()));
             } else if (!businessOk) {
-                setStatus(QStringLiteral("业务失败"));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "业务失败"));
             } else {
-                setStatus(QStringLiteral("正在播放 \"%1\"").arg(m_playlistName));
+                setStatus(QCoreApplication::translate("Nodes::SlideShowDataModel", "正在播放 \"%1\"").arg(m_playlistName));
             }
 
             if (m_resendSet) {

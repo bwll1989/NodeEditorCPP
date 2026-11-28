@@ -4,6 +4,7 @@
 #include <QSignalBlocker>
 #include <QSpacerItem>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 using namespace Nodes;
 TimeCodeInterface::TimeCodeInterface(QWidget *parent)
@@ -12,8 +13,8 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     , timeCodeStatusLabel(new QLabel(this))
     , timeCodeOffsetSpinBox(new IntDragValueWidget(this))
     , timeCodeTypeComboBox(new QComboBox(this))
-    , startButton(new QPushButton(QStringLiteral("Start"), this))
-    , resetButton(new QPushButton(QStringLiteral("Reset"), this))
+    , startButton(new QPushButton(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "启动"), this))
+    , resetButton(new QPushButton(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "重置"), this))
     , volumeSlider(new FloatDragValueWidget(this))
 {
     auto *layout = new QVBoxLayout(this);
@@ -39,12 +40,12 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     layout->addWidget(timeCodeLabel);
 
     timeCodeStatusLabel->setAlignment(Qt::AlignCenter);
-    timeCodeStatusLabel->setText("Status: Idle");
+    timeCodeStatusLabel->setText(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "状态: 空闲"));
     layout->addWidget(timeCodeStatusLabel);
 
-    addRow("Offset:", timeCodeOffsetSpinBox);
-    addRow("Type:", timeCodeTypeComboBox);
-    addRow("Volume:", volumeSlider);
+    addRow(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "偏移："), timeCodeOffsetSpinBox);
+    addRow(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "类型："), timeCodeTypeComboBox);
+    addRow(QCoreApplication::translate("Nodes::LTCGeneratorInterface", "音量："), volumeSlider);
 
     startButton->setCheckable(true);
     startButton->setAutoExclusive(false);

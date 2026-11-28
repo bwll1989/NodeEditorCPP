@@ -2,6 +2,7 @@
 #define CURVECLIPMODEL_H
 
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -122,16 +123,18 @@ public:
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(4);
 
-        auto* group = new QGroupBox(QStringLiteral("三维曲线"), m_editor);
+        // 【i18n】Clips 命名空间类：moc context 带命名空间，裸 tr() 查 .qm 会 MISS，
+        // 统一显式 QCoreApplication::translate（context=Clips::CurveClipModel）。
+        auto* group = new QGroupBox(QCoreApplication::translate("Clips::CurveClipModel", "三维曲线"), m_editor);
         auto* layout = new QVBoxLayout(group);
         layout->setContentsMargins(6, 6, 6, 6);
         layout->setSpacing(4);
 
         auto* tools = new QHBoxLayout();
-        auto* addButton = new QPushButton(QStringLiteral("添加点"), group);
-        auto* removeButton = new QPushButton(QStringLiteral("删除点"), group);
-        auto* frameButton = new QPushButton(QStringLiteral("适应视图"), group);
-        m_closedBox = new QCheckBox(QStringLiteral("闭合"), group);
+        auto* addButton = new QPushButton(QCoreApplication::translate("Clips::CurveClipModel", "添加点"), group);
+        auto* removeButton = new QPushButton(QCoreApplication::translate("Clips::CurveClipModel", "删除点"), group);
+        auto* frameButton = new QPushButton(QCoreApplication::translate("Clips::CurveClipModel", "适应视图"), group);
+        m_closedBox = new QCheckBox(QCoreApplication::translate("Clips::CurveClipModel", "闭合"), group);
         tools->addWidget(addButton);
         tools->addWidget(removeButton);
         tools->addWidget(frameButton);
@@ -191,7 +194,7 @@ public:
         syncEditors();
         const QVector3D startPosition = m_path->positionAtFraction(0.0);
         if (m_readout) {
-            m_readout->setText(QStringLiteral("输出 [%1, %2, %3]")
+            m_readout->setText(QCoreApplication::translate("Clips::CurveClipModel", "输出 [%1, %2, %3]")
                 .arg(double(startPosition.x()), 0, 'f', 3)
                 .arg(double(startPosition.y()), 0, 'f', 3)
                 .arg(double(startPosition.z()), 0, 'f', 3));
@@ -267,8 +270,8 @@ private:
         m_z->setEnabled(enabled);
         if (m_pointLabel) {
             m_pointLabel->setText(enabled
-                ? QStringLiteral("点 %1").arg(index + 1)
-                : QStringLiteral("未选择"));
+                ? QCoreApplication::translate("Clips::CurveClipModel", "点 %1").arg(index + 1)
+                : QCoreApplication::translate("Clips::CurveClipModel", "未选择"));
         }
         if (!enabled) {
             return;
@@ -327,7 +330,7 @@ private:
             m_viewport->setPlaybackFraction(fraction);
         }
         if (m_readout) {
-            m_readout->setText(QStringLiteral("输出 [%1, %2, %3]")
+            m_readout->setText(QCoreApplication::translate("Clips::CurveClipModel", "输出 [%1, %2, %3]")
                 .arg(double(position.x()), 0, 'f', 3)
                 .arg(double(position.y()), 0, 'f', 3)
                 .arg(double(position.z()), 0, 'f', 3));

@@ -83,7 +83,7 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
     if (!index.isValid()) {
         switch (role) {
             case Qt::ToolTipRole:
-                return QVariant::fromValue(QString("Length:%1").arg(m_lengthFrame));
+                return QVariant::fromValue(tr("时长:%1").arg(m_lengthFrame));
             case TimelineLengthRole:
                 return QVariant::fromValue(m_lengthFrame);
             case TimeCodeTypeRole:
@@ -105,7 +105,7 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             case Qt::ToolTipRole:
                 // 【2026-11-20 人话化】原 "%1 to %2" 直接拼 μs 原值（如
                 // "Video:40000 to 1204000"）不可读——改易读时间区间 + 时长。
-                return QVariant::fromValue(QStringLiteral("%1: %2 → %3（时长 %4）")
+                return QVariant::fromValue(tr("%1: %2 → %3（时长 %4）")
                     .arg(clip->type(),
                          QtTimeline::usToClockString(clip->start()),
                          QtTimeline::usToClockString(clip->end()),

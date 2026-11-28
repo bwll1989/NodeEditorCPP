@@ -14,6 +14,7 @@
 #include <QSpacerItem>
 #include <QDateTime>
 #include <QCheckBox>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -75,14 +76,14 @@ namespace Nodes
          */
         void updateConnectionStatus(bool connected) {
             if (connected) {
-                m_connectionStatusLabel->setText("状态: 已连接");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::NDIInInterface", "状态: 已连接"));
                 m_connectionStatusLabel->setStyleSheet("color: green; font-weight: bold;");
-                m_startStopButton->setText("停止");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::NDIInInterface", "停止"));
                 m_isReceiving = true;
             } else {
-                m_connectionStatusLabel->setText("状态: 未连接");
+                m_connectionStatusLabel->setText(QCoreApplication::translate("Nodes::NDIInInterface", "状态: 未连接"));
                 m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-                m_startStopButton->setText("开始");
+                m_startStopButton->setText(QCoreApplication::translate("Nodes::NDIInInterface", "开始"));
                 m_isReceiving = false;
             }
         }
@@ -136,7 +137,7 @@ namespace Nodes
          * @param text 当前文本
          */
         void onSenderTextChanged(const QString& text) {
-            if (!text.isEmpty() && text != "请输入或选择发送器名称") {
+            if (!text.isEmpty() && text != QCoreApplication::translate("Nodes::NDIInInterface", "请输入或选择发送器名称")) {
                 emit senderSelected(text);
             }
         }
@@ -161,7 +162,7 @@ namespace Nodes
          * @brief 创建发送器选择组
          */
         void createSenderGroup() {
-            m_senderGroup = new QGroupBox("NDI发送器", this);
+            m_senderGroup = new QGroupBox(QCoreApplication::translate("Nodes::NDIInInterface", "NDI发送器"), this);
             QVBoxLayout *layout = new QVBoxLayout(m_senderGroup);
             
             // 发送器选择
@@ -171,12 +172,12 @@ namespace Nodes
             // 设置为可编辑模式，允许用户手动输入
             m_senderComboBox->setEditable(true);
             m_senderComboBox->setInsertPolicy(QComboBox::NoInsert);
-            m_senderComboBox->addItem("请输入或选择发送器名称");
+            m_senderComboBox->addItem(QCoreApplication::translate("Nodes::NDIInInterface", "请输入或选择发送器名称"));
             
             // 设置占位符文本
-            m_senderComboBox->lineEdit()->setPlaceholderText("输入NDI发送器名称");
+            m_senderComboBox->lineEdit()->setPlaceholderText(QCoreApplication::translate("Nodes::NDIInInterface", "输入NDI发送器名称"));
             
-            m_refreshButton = new QPushButton("刷新");
+            m_refreshButton = new QPushButton(QCoreApplication::translate("Nodes::NDIInInterface", "刷新"));
             m_refreshButton->setMaximumWidth(50);
             
             senderLayout->addWidget(m_senderComboBox);
@@ -184,9 +185,9 @@ namespace Nodes
 
             layout->addLayout(senderLayout);
 
-            m_startStopButton = new QPushButton("开始");
+            m_startStopButton = new QPushButton(QCoreApplication::translate("Nodes::NDIInInterface", "开始"));
             m_startStopButton->setCheckable(true);
-            m_connectionStatusLabel = new QLabel("状态: 未连接");
+            m_connectionStatusLabel = new QLabel(QCoreApplication::translate("Nodes::NDIInInterface", "状态: 未连接"));
             layout->addWidget(m_startStopButton);
             layout->addWidget(m_connectionStatusLabel);
         }

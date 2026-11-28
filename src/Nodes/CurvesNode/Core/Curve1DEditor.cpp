@@ -51,7 +51,7 @@ Curve1DEditor::Curve1DEditor(QWidget* parent)
     setMouseTracking(true);
     setFocusPolicy(Qt::ClickFocus);
     setMinimumHeight(240);
-    setToolTip(QStringLiteral(
+    setToolTip(tr(
         "左键拖动控制点（横轴=周期内时间，限制在相邻点之间）；单击曲线或图例切换编辑目标；"
         "双击插入点；中键或右键上下平移，滚轮缩放（仅 Y 轴）；Delete 删除选中点。"
         "横轴显示完整周期（在工具行修改周期后自动刷新刻度）"));

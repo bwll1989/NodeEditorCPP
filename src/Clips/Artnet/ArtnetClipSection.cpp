@@ -54,27 +54,27 @@ ArtnetClipSection::ArtnetClipSection(const ClipSectionContext& ctx,
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(4);
 
-    auto* box = new QGroupBox(QStringLiteral("Artnet 回放"), this);
+    auto* box = new QGroupBox(tr("Artnet 回放"), this);
     auto* lay = new QGridLayout(box);
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
 
     // ---- DMX 视频（媒体库 DMX 分类候选；文本 = 库内相对文件名）------------
-    lay->addWidget(new QLabel(QStringLiteral("DMX 视频:"), box), 0, 0);
+    lay->addWidget(new QLabel(tr("DMX 视频:"), box), 0, 0);
     file_ = new SelectorComboBox(MediaLibrary::Category::DMX, box);
     file_->setObjectName("artnetFile");
-    file_->setPlaceholderText(QStringLiteral("媒体库 DMX 视频名"));
+    file_->setPlaceholderText(tr("媒体库 DMX 视频名"));
     lay->addWidget(file_, 0, 1);
 
     // ---- 起始域 ------------------------------------------------------------
-    lay->addWidget(new QLabel(QStringLiteral("回放起始域:"), box), 1, 0);
+    lay->addWidget(new QLabel(tr("回放起始域:"), box), 1, 0);
     universe_ = new QSpinBox(box);
     universe_->setObjectName("artnetUniverse");
     universe_->setRange(0, 65535);
     lay->addWidget(universe_, 1, 1);
 
     // ---- 目标主机（IPv4，含 .255 广播）--------------------------------------
-    lay->addWidget(new QLabel(QStringLiteral("目标主机:"), box), 2, 0);
+    lay->addWidget(new QLabel(tr("目标主机:"), box), 2, 0);
     host_ = new QLineEdit(box);
     host_->setObjectName("artnetHost");
     host_->setValidator(new QRegularExpressionValidator(
@@ -82,8 +82,8 @@ ArtnetClipSection::ArtnetClipSection(const ClipSectionContext& ctx,
             "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}"
             "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")),
         box));
-    host_->setToolTip(QStringLiteral("目标主机 IP，如 192.168.1.100 或 "
-                                     "192.168.1.255（广播）"));
+    host_->setToolTip(tr("目标主机 IP，如 192.168.1.100 或 "
+                         "192.168.1.255（广播）"));
     lay->addWidget(host_, 2, 1);
 
     // ---- 文件探测信息 --------------------------------------------------------
@@ -192,7 +192,7 @@ void ArtnetClipSection::updateInfoLabel() {
     if (!info_) return;
     const QString file = file_ ? file_->text().trimmed() : QString();
     if (file.isEmpty()) {
-        info_->setText(QStringLiteral(
+        info_->setText(tr(
             "选择媒体库中的 DMX 视频（宽 512 × 高 = 域数，FFV1 编码）"));
         return;
     }
@@ -201,13 +201,13 @@ void ArtnetClipSection::updateInfoLabel() {
     AVFormatContext* probe = nullptr;
     if (avformat_open_input(&probe, abs.toUtf8().constData(),
                             nullptr, nullptr) < 0 || !probe) {
-        info_->setText(QStringLiteral("⚠ 文件打不开：%1").arg(file));
+        info_->setText(tr("⚠ 文件打不开：%1").arg(file));
         if (probe) avformat_close_input(&probe);
         return;
     }
     if (avformat_find_stream_info(probe, nullptr) < 0) {
         avformat_close_input(&probe);
-        info_->setText(QStringLiteral("⚠ 流信息读取失败：%1").arg(file));
+        info_->setText(tr("⚠ 流信息读取失败：%1").arg(file));
         return;
     }
     QString out;
@@ -219,16 +219,16 @@ void ArtnetClipSection::updateInfoLabel() {
                 ? st->duration * av_q2d(st->time_base)
                 : probe->duration / (double)AV_TIME_BASE;
         const bool ffv1 = st->codecpar->codec_id == AV_CODEC_ID_FFV1;
-        out = QStringLiteral("%1 · %2×%3 · %4 域 · %5 秒%6")
+        out = tr("%1 · %2×%3 · %4 域 · %5 秒%6")
                   .arg(file,
                        QString::number(st->codecpar->width),
                        QString::number(st->codecpar->height),
                        QString::number(st->codecpar->height),
                        QString::number(seconds, 'f', 2),
-                       ffv1 ? QString() : QStringLiteral(" · ⚠ 非 FFV1"));
+                       ffv1 ? QString() : tr(" · ⚠ 非 FFV1"));
         break;
     }
-    if (out.isEmpty()) out = QStringLiteral("⚠ 无视频流：%1").arg(file);
+    if (out.isEmpty()) out = tr("⚠ 无视频流：%1").arg(file);
     info_->setText(out);
     avformat_close_input(&probe);
 }

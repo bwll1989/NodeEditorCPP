@@ -45,6 +45,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QStringConverter>
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -298,7 +299,7 @@ void JsCodeEditor::createWidgets()
     //折叠样式
     m_codeEditor->setFolding(QsciScintilla::BoxedTreeFoldStyle);
 
-    m_readOnlyCheckBox           = new QCheckBox("Read Only", setupGroup);
+    m_readOnlyCheckBox           = new QCheckBox(QCoreApplication::translate("Nodes::JsCodeEditor", "只读"), setupGroup);
     // auto *saveShortcutAction = new QShortcut((QKeySequence::fromString("Ctrl+S")),this);
     // auto *m_actionToggleComment =new QShortcut(QKeySequence::fromString("Ctrl+/"),this);
     // connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
@@ -310,7 +311,7 @@ void JsCodeEditor::createWidgets()
 
 void JsCodeEditor::setupWidgets()
 {
-    setWindowTitle("CodeEditor");
+    setWindowTitle(QCoreApplication::translate("Nodes::JsCodeEditor", "代码编辑器"));
     loadCodeFromCode(m_code);
     
     // 设置初始焦点到编辑器
@@ -365,7 +366,7 @@ void JsCodeEditor::exportCode()
 {
     // 创建插件元数据收集对话框
     QDialog* exportDialog = new QDialog(this);
-    exportDialog->setWindowTitle("导出JS插件");
+    exportDialog->setWindowTitle(QCoreApplication::translate("Nodes::JsCodeEditor", "导出JS插件"));
     exportDialog->setModal(true);
     exportDialog->resize(400, 500);
     
@@ -377,71 +378,71 @@ void JsCodeEditor::exportCode()
     
     // 插件名称
     QLineEdit* nameEdit = new QLineEdit("MyPlugin");
-    nameEdit->setToolTip("插件的显示名称");
-    formLayout->addRow("插件名称:", nameEdit);
+    nameEdit->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件的显示名称"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "插件名称:"), nameEdit);
     
     // 插件描述
-    QTextEdit* descEdit = new QTextEdit("插件描述");
+    QTextEdit* descEdit = new QTextEdit(QCoreApplication::translate("Nodes::JsCodeEditor", "插件描述"));
     descEdit->setMaximumHeight(60);
-    descEdit->setToolTip("插件的功能描述");
-    formLayout->addRow("插件描述:", descEdit);
+    descEdit->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件的功能描述"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "插件描述:"), descEdit);
     
     // 版本号
     QLineEdit* versionEdit = new QLineEdit("1.0.0");
-    versionEdit->setToolTip("插件版本号，格式：主版本.次版本.修订版本");
-    formLayout->addRow("版本号:", versionEdit);
+    versionEdit->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件版本号，格式：主版本.次版本.修订版本"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "版本号:"), versionEdit);
     
     // 作者
-    QLineEdit* authorEdit = new QLineEdit("作者名称");
-    authorEdit->setToolTip("插件作者姓名");
-    formLayout->addRow("作者:", authorEdit);
+    QLineEdit* authorEdit = new QLineEdit(QCoreApplication::translate("Nodes::JsCodeEditor", "作者名称"));
+    authorEdit->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件作者姓名"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "作者:"), authorEdit);
     
     // 分类
     QComboBox* categoryCombo = new QComboBox();
     categoryCombo->addItems({"JS Plugins", "Controls", "Audio", "Video", "Data", "Network", "Utility", "Custom"});
     categoryCombo->setCurrentText("JS Plugins");
-    categoryCombo->setToolTip("插件分类，用于在节点库中分组显示");
-    formLayout->addRow("分类:", categoryCombo);
+    categoryCombo->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件分类，用于在节点库中分组显示"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "分类:"), categoryCombo);
     
     // 输入端口数量
     QSpinBox* inputsSpinBox = new QSpinBox();
     inputsSpinBox->setRange(0, 99);
     inputsSpinBox->setValue(1);
-    inputsSpinBox->setToolTip("插件的输入端口数量");
-    formLayout->addRow("输入端口数:", inputsSpinBox);
+    inputsSpinBox->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件的输入端口数量"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "输入端口数:"), inputsSpinBox);
     
     // 输出端口数量
     QSpinBox* outputsSpinBox = new QSpinBox();
     outputsSpinBox->setRange(0, 99);
     outputsSpinBox->setValue(1);
-    outputsSpinBox->setToolTip("插件的输出端口数量");
-    formLayout->addRow("输出端口数:", outputsSpinBox);
+    outputsSpinBox->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "插件的输出端口数量"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "输出端口数:"), outputsSpinBox);
     
     // 可嵌入选项
     QCheckBox* embeddableCheckBox = new QCheckBox();
     embeddableCheckBox->setChecked(false);
-    embeddableCheckBox->setToolTip("默认是否嵌入到节点中显示界面");
-    formLayout->addRow("嵌入:", embeddableCheckBox);
+    embeddableCheckBox->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "默认是否嵌入到节点中显示界面"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "嵌入:"), embeddableCheckBox);
     
     // 可调整大小选项
     QCheckBox* resizableCheckBox = new QCheckBox();
     resizableCheckBox->setChecked(true);
-    resizableCheckBox->setToolTip("节点是否可以调整大小");
-    formLayout->addRow("可调整大小:", resizableCheckBox);
+    resizableCheckBox->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "节点是否可以调整大小"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "可调整大小:"), resizableCheckBox);
     
     // 端口可编辑选项
     QCheckBox* portEditableCheckBox = new QCheckBox();
     portEditableCheckBox->setChecked(false);
-    portEditableCheckBox->setToolTip("是否允许用户编辑端口数量");
-    formLayout->addRow("端口可编辑:", portEditableCheckBox);
+    portEditableCheckBox->setToolTip(QCoreApplication::translate("Nodes::JsCodeEditor", "是否允许用户编辑端口数量"));
+    formLayout->addRow(QCoreApplication::translate("Nodes::JsCodeEditor", "端口可编辑:"), portEditableCheckBox);
     
     // 添加表单到主布局
     mainLayout->addLayout(formLayout);
     
     // 添加按钮
     QHBoxLayout* buttonLayout = new QHBoxLayout();
-    QPushButton* exportButton = new QPushButton("导出");
-    QPushButton* cancelButton = new QPushButton("取消");
+    QPushButton* exportButton = new QPushButton(QCoreApplication::translate("Nodes::JsCodeEditor", "导出"));
+    QPushButton* cancelButton = new QPushButton(QCoreApplication::translate("Nodes::JsCodeEditor", "取消"));
     
     buttonLayout->addStretch();
     buttonLayout->addWidget(exportButton);
@@ -453,12 +454,12 @@ void JsCodeEditor::exportCode()
     connect(exportButton, &QPushButton::clicked, [=]() {
         // 验证输入
         if (nameEdit->text().trimmed().isEmpty()) {
-            QMessageBox::warning(exportDialog, "错误", "请输入插件名称！");
+            QMessageBox::warning(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "错误"), QCoreApplication::translate("Nodes::JsCodeEditor", "请输入插件名称！"));
             return;
         }
         
         if (descEdit->toPlainText().trimmed().isEmpty()) {
-            QMessageBox::warning(exportDialog, "错误", "请输入插件描述！");
+            QMessageBox::warning(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "错误"), QCoreApplication::translate("Nodes::JsCodeEditor", "请输入插件描述！"));
             return;
         }
         
@@ -470,8 +471,8 @@ void JsCodeEditor::exportCode()
         QDir dir;
         if (!dir.exists(pluginsDir)) {
             if (!dir.mkpath(pluginsDir)) {
-                QMessageBox::critical(exportDialog, "错误", 
-                    QString("无法创建目录：\n%1").arg(pluginsDir));
+                QMessageBox::critical(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "错误"), 
+                    QCoreApplication::translate("Nodes::JsCodeEditor", "无法创建目录：\n%1").arg(pluginsDir));
                 return;
             }
         }
@@ -484,8 +485,8 @@ void JsCodeEditor::exportCode()
         
         // 如果文件已存在，询问是否覆盖
         if (QFile::exists(fileName)) {
-            int ret = QMessageBox::question(exportDialog, "文件已存在", 
-                QString("文件 %1 已存在，是否覆盖？").arg(safeName + ".js"),
+            int ret = QMessageBox::question(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "文件已存在"), 
+                QCoreApplication::translate("Nodes::JsCodeEditor", "文件 %1 已存在，是否覆盖？").arg(safeName + ".js"),
                 QMessageBox::Yes | QMessageBox::No);
             if (ret == QMessageBox::No) {
                 return;
@@ -529,12 +530,12 @@ void JsCodeEditor::exportCode()
             out << jsContent;
             file.close();
             
-            QMessageBox::information(exportDialog, "成功", 
-                QString("JS插件已成功导出，重启软件生效！"));
+            QMessageBox::information(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "成功"), 
+                QCoreApplication::translate("Nodes::JsCodeEditor", "JS插件已成功导出，重启软件生效！"));
                  exportDialog->accept();
         } else {
-            QMessageBox::critical(exportDialog, "错误", 
-                QString("无法写入文件：\n%1\n\n错误：%2")
+            QMessageBox::critical(exportDialog, QCoreApplication::translate("Nodes::JsCodeEditor", "错误"), 
+                QCoreApplication::translate("Nodes::JsCodeEditor", "无法写入文件：\n%1\n\n错误：%2")
                 .arg(fileName)
                 .arg(file.errorString()));
         }

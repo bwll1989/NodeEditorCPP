@@ -17,6 +17,7 @@
 #include <cmath>
 
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -71,8 +72,8 @@ protected:
         const QRectF dest = imageDest();
         if (m_image.isNull() || dest.isEmpty()) {
             painter.setPen(QColor(180, 180, 180));
-            const QString hint = m_picking ? QStringLiteral("等待画面，点击选择物体")
-                                           : QStringLiteral("检测中");
+            const QString hint = m_picking ? QCoreApplication::translate("Nodes::TrackPickView", "等待画面，点击选择物体")
+                                           : QCoreApplication::translate("Nodes::TrackPickView", "检测中");
             painter.drawText(rect(), Qt::AlignCenter, hint);
             return;
         }
@@ -137,14 +138,14 @@ public:
 
         regionView = new TrackPickView(this);
         layout->addWidget(regionView, 0, 0, 1, 2);
-        layout->addWidget(new QLabel(QStringLiteral("先点击选择对象。选择完成后再开始检测，检测过程中不能再选。"), this), 1, 0, 1, 2);
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "先点击选择对象。选择完成后再开始检测，检测过程中不能再选。"), this), 1, 0, 1, 2);
 
         idEdit = new QLineEdit(this);
-        idEdit->setPlaceholderText(QStringLiteral("输入 ID，空则自动编号"));
-        layout->addWidget(new QLabel(QStringLiteral("目标 ID:"), this), 2, 0);
+        idEdit->setPlaceholderText(QCoreApplication::translate("Nodes::ObjectTrackInterface", "输入 ID，空则自动编号"));
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "目标 ID:"), this), 2, 0);
         layout->addWidget(idEdit, 2, 1);
 
-        removeBtn = new QPushButton(QStringLiteral("删除选中"), this);
+        removeBtn = new QPushButton(QCoreApplication::translate("Nodes::ObjectTrackInterface", "删除选中"), this);
         layout->addWidget(removeBtn, 3, 0, 1, 2);
 
         targetList = new QListWidget(this);
@@ -157,7 +158,7 @@ public:
         confidence->setSingleStep(0.01);
         confidence->setDecimals(2);
         confidence->setValue(0.25);
-        layout->addWidget(new QLabel(QStringLiteral("相似度阈值:"), this), 5, 0);
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "相似度阈值:"), this), 5, 0);
         layout->addWidget(confidence, 5, 1);
 
         maxFps = new FloatDragValueWidget(this);
@@ -165,7 +166,7 @@ public:
         maxFps->setSingleStep(1);
         maxFps->setDecimals(0);
         maxFps->setValue(15);
-        layout->addWidget(new QLabel(QStringLiteral("最大帧率 (FPS):"), this), 6, 0);
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "最大帧率 (FPS):"), this), 6, 0);
         layout->addWidget(maxFps, 6, 1);
 
         holdFrames = new FloatDragValueWidget(this);
@@ -173,19 +174,19 @@ public:
         holdFrames->setSingleStep(1);
         holdFrames->setDecimals(0);
         holdFrames->setValue(8);
-        layout->addWidget(new QLabel(QStringLiteral("丢失保持 (帧):"), this), 7, 0);
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "丢失保持 (帧):"), this), 7, 0);
         layout->addWidget(holdFrames, 7, 1);
 
-        drawOverlay = new QCheckBox(QStringLiteral("绘制跟踪框"), this);
+        drawOverlay = new QCheckBox(QCoreApplication::translate("Nodes::ObjectTrackInterface", "绘制跟踪框"), this);
         drawOverlay->setChecked(true);
         layout->addWidget(drawOverlay, 8, 0, 1, 2);
 
-        layout->addWidget(new QLabel(QStringLiteral("开始检测:"), this), 9, 0);
-        enableBtn = new QPushButton(QStringLiteral("开始检测"), this);
+        layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "开始检测:"), this), 9, 0);
+        enableBtn = new QPushButton(QCoreApplication::translate("Nodes::ObjectTrackInterface", "开始检测"), this);
         enableBtn->setCheckable(true);
         layout->addWidget(enableBtn, 9, 1);
 
-        statusLabel = new QLabel(QStringLiteral("点击画面选择对象"), this);
+        statusLabel = new QLabel(QCoreApplication::translate("Nodes::ObjectTrackInterface", "点击画面选择对象"), this);
         statusLabel->setWordWrap(true);
         layout->addWidget(statusLabel, 10, 0, 1, 2);
 

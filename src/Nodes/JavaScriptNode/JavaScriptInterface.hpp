@@ -7,6 +7,7 @@
 
 #include "JsCodeEditor.h"
 
+#include <QCoreApplication>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -33,7 +34,7 @@ namespace Nodes
 
             editButton = new QToolButton();
             editButton->setIcon(QIcon(":/icons/icons/js.png"));
-            editButton->setToolTip("编辑脚本");
+            editButton->setToolTip(QCoreApplication::translate("Nodes::JavaScriptInterface", "编辑脚本"));
             editButton->setFixedSize(18, 18);
 
             bottomLayout->addStretch();
@@ -60,7 +61,7 @@ namespace Nodes
             }
 
             codeWidget->setParent(nullptr);
-            codeWidget->setWindowTitle("JS脚本编辑器");
+            codeWidget->setWindowTitle(QCoreApplication::translate("Nodes::JavaScriptInterface", "JS脚本编辑器"));
             codeWidget->setWindowIcon(QIcon(":/icons/icons/js.png"));
             codeWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
             codeWidget->setAttribute(Qt::WA_DeleteOnClose, false);

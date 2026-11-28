@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -17,7 +18,7 @@ namespace Nodes
         explicit StepperInterface(QWidget *parent = nullptr)
             : QWidget(parent)
             , m_stepLabel(new QLabel(this))
-            , m_resetButton(new QPushButton(tr("Reset"), this))
+            , m_resetButton(new QPushButton(QCoreApplication::translate("Nodes::StepperInterface", "重置"), this))
         {
             m_stepLabel->setAlignment(Qt::AlignCenter);
             setStepDisplay(-1);

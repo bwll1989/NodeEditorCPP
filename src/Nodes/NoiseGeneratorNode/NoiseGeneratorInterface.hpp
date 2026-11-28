@@ -11,6 +11,7 @@
 #include "QPushButton"
 #include <QGridLayout>
 #include <QSpacerItem>
+#include <QCoreApplication>
 
 /// 噪音生成器界面类
 /// 提供噪音类型选择、音量控制、开始/停止按钮等功能
@@ -28,13 +29,13 @@ namespace Nodes
             main_layout->setSpacing(6);
 
             // 初始化噪音类型选择
-            noiseTypeCombo->addItem("白噪音");
-            noiseTypeCombo->addItem("粉噪音");
+            noiseTypeCombo->addItem(QCoreApplication::translate("Nodes::NoiseGeneratorInterface", "白噪音"));
+            noiseTypeCombo->addItem(QCoreApplication::translate("Nodes::NoiseGeneratorInterface", "粉噪音"));
             noiseTypeCombo->setCurrentIndex(0);
             // 布局设置（竖向 2*n：左侧标签、右侧控件）
-            main_layout->addWidget(new QLabel("噪音类型:"), 0, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::NoiseGeneratorInterface", "噪音类型:")), 0, 0);
             main_layout->addWidget(noiseTypeCombo, 0, 1);
-            main_layout->addWidget(new QLabel("音量(dB):"), 1, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::NoiseGeneratorInterface", "音量(dB):")), 1, 0);
             main_layout->addWidget(volumeSlider, 1, 1);
             main_layout->addWidget(startButton, 2, 0, 1, 2);
             startButton->setCheckable(true);
@@ -61,7 +62,7 @@ namespace Nodes
         // 界面组件
         QGridLayout *main_layout;
         QComboBox *noiseTypeCombo = new QComboBox(this);
-        QPushButton *startButton = new QPushButton("启动");
+        QPushButton *startButton = new QPushButton(QCoreApplication::translate("Nodes::NoiseGeneratorInterface", "启动"));
         // QPushButton *stopButton = new QPushButton("停止生成");
         FloatDragValueWidget *volumeSlider = new FloatDragValueWidget(this);
     };

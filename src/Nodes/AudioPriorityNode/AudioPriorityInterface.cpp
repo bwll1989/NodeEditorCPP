@@ -12,7 +12,7 @@ AudioPriorityInterface::AudioPriorityInterface(QWidget *parent)
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(4, 4, 4, 4);
 
-    auto *group = new QGroupBox(QStringLiteral("Priority Ducker"), this);
+    auto *group = new QGroupBox(tr("优先级闪避器"), this);
     auto *layout = new QGridLayout(group);
 
     auto addFloatRow = [layout](int row, const QString &label, FloatDragValueWidget *spin) {
@@ -24,7 +24,7 @@ AudioPriorityInterface::AudioPriorityInterface(QWidget *parent)
     channelsSpin->setRange(kMinChannels, kMaxChannels);
     channelsSpin->setSingleStep(1);
     channelsSpin->setValue(kDefaultChannels);
-    layout->addWidget(new QLabel(QStringLiteral("Channels")), 0, 0);
+    layout->addWidget(new QLabel(tr("声道")), 0, 0);
     layout->addWidget(channelsSpin, 0, 1);
 
     thresholdSpin = new FloatDragValueWidget();

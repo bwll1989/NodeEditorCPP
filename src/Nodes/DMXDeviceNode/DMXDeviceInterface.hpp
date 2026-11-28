@@ -14,6 +14,7 @@
 #include <QScrollArea>
 #include <QVector>
 #include <QCheckBox>
+#include <QCoreApplication>
 #include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
@@ -40,7 +41,7 @@ namespace Nodes
          */
         void updateAddressRangeLabel(int startAddr, int channelCount) {
             int endAddr = startAddr + channelCount - 1;
-            addressRangeLabel->setText(QString("地址范围: %1-%2").arg(startAddr).arg(endAddr));
+            addressRangeLabel->setText(QCoreApplication::translate("Nodes::DMXDeviceInterface", "地址范围: %1-%2").arg(startAddr).arg(endAddr));
         }
 
         /**
@@ -55,7 +56,7 @@ namespace Nodes
             createChannelControls(channelCount);
             
             // 更新组标题
-            channelGroup->setTitle(QString("通道控制 (%1个通道)").arg(channelCount));
+            channelGroup->setTitle(QCoreApplication::translate("Nodes::DMXDeviceInterface", "通道控制 (%1个通道)").arg(channelCount));
         }
 
         /**
@@ -125,13 +126,13 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createChannelConfigGroup(QBoxLayout *parentLayout) {
-            QGroupBox *configGroup = new QGroupBox("通道配置", this);
+            QGroupBox *configGroup = new QGroupBox(QCoreApplication::translate("Nodes::DMXDeviceInterface", "通道配置"), this);
             QGridLayout *configLayout = new QGridLayout(configGroup);
             
             // 启用/禁用控件
-            enableCheckBox->setText("启用输出");
+            enableCheckBox->setText(QCoreApplication::translate("Nodes::DMXDeviceInterface", "启用输出"));
             enableCheckBox->setChecked(true);  // 默认启用
-            enableCheckBox->setToolTip("启用时发送当前值，禁用时发送0值");
+            enableCheckBox->setToolTip(QCoreApplication::translate("Nodes::DMXDeviceInterface", "启用时发送当前值，禁用时发送0值"));
             enableCheckBox->setStyleSheet("QCheckBox { font-weight: bold; color: #2196F3; }");
             configLayout->addWidget(enableCheckBox, 0, 0, 1, 2);
             
@@ -139,21 +140,21 @@ namespace Nodes
             connect(enableCheckBox, &QCheckBox::toggled, this, &DMXDeviceInterface::enableStateChanged);
             
             // 起始DMX地址设置
-            configLayout->addWidget(new QLabel("起始地址:", this), 1, 0);
+            configLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::DMXDeviceInterface", "起始地址:"), this), 1, 0);
             startAddressSpinBox->setRange(1, 512);
             startAddressSpinBox->setValue(1);
-            startAddressSpinBox->setToolTip("DMX起始地址 (1-512)");
+            startAddressSpinBox->setToolTip(QCoreApplication::translate("Nodes::DMXDeviceInterface", "DMX起始地址 (1-512)"));
             configLayout->addWidget(startAddressSpinBox, 1, 1);
             
             // 通道数量设置
-            configLayout->addWidget(new QLabel("通道数:", this), 2, 0);
+            configLayout->addWidget(new QLabel(QCoreApplication::translate("Nodes::DMXDeviceInterface", "通道数:"), this), 2, 0);
             channelCountSpinBox->setRange(1, 512);
             channelCountSpinBox->setValue(4);
-            channelCountSpinBox->setToolTip("通道数量 (1-512)");
+            channelCountSpinBox->setToolTip(QCoreApplication::translate("Nodes::DMXDeviceInterface", "通道数量 (1-512)"));
             configLayout->addWidget(channelCountSpinBox, 2, 1);
             
             // 添加地址范围显示标签
-            addressRangeLabel = new QLabel("地址范围: 1-5", this);
+            addressRangeLabel = new QLabel(QCoreApplication::translate("Nodes::DMXDeviceInterface", "地址范围: 1-5"), this);
             addressRangeLabel->setStyleSheet("color: #888; font-style: italic;");
             configLayout->addWidget(addressRangeLabel, 3, 0, 1, 2);
 
@@ -168,7 +169,7 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createChannelControlGroup(QBoxLayout *parentLayout) {
-            channelGroup = new QGroupBox("通道控制", this);
+            channelGroup = new QGroupBox(QCoreApplication::translate("Nodes::DMXDeviceInterface", "通道控制"), this);
             
             // 创建滚动区域
             scrollArea = new QScrollArea(this);

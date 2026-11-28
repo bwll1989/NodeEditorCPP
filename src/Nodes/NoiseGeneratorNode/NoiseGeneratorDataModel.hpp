@@ -13,6 +13,7 @@
 #include "NoiseGenerator.hpp"
 #include "QThread"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include <QCoreApplication>
 
 
 using namespace std;
@@ -59,7 +60,7 @@ namespace Nodes
             connect(widget->startButton, &QPushButton::clicked,
                     this, [this](bool checked){
                         setGenerating(checked);
-                        widget->startButton->setText(checked ? "停止" : "启动");
+                        widget->startButton->setText(checked ? "停止" : QCoreApplication::translate("Nodes::NoiseGeneratorDataModel", "启动"));
                     });
 
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged,
@@ -280,7 +281,7 @@ namespace Nodes
             }
             widget->blockSignals(true);
             widget->startButton->setChecked(value);
-            widget->startButton->setText(value ? "停止" : "启动");
+            widget->startButton->setText(value ? "停止" : QCoreApplication::translate("Nodes::NoiseGeneratorDataModel", "启动"));
             widget->blockSignals(false);
             emit generatingChanged(value);
         }

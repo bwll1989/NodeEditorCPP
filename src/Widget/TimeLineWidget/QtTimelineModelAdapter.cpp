@@ -503,7 +503,7 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         for (const auto& a : work_->assets)
             if (a.id == c->asset_id) {
                 binding_name = a.live_source_name.empty()
-                    ? QStringLiteral("（实况源未选——在下方实况区选择）")
+                    ? tr("（实况源未选——在下方实况区选择）")
                     : QString::fromStdString(a.live_source_name);
                 break;
             }
@@ -587,7 +587,7 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
                     locateWorkClip(QString::fromStdString(clip_id));
                 if (!cc) return; // 帧间被删（防御）
                 auto* tsec = new TweenSection(*cc, expo, panel_guard.data());
-                panel_guard->appendSection(tsec, QStringLiteral("动画"));
+                panel_guard->appendSection(tsec, tr("动画"));
                 panel_refs_[clip_id].push_back({tsec, PanelRef::Kind::Tween});
                 QPointer<TweenSection> wguard(tsec);
                 // 【守卫补齐 2026-11-20】回调捕适配器 QPointer——适配器先亡
@@ -1619,24 +1619,11 @@ const char* QtTimelineModelAdapter::kindShortName(AssetKind kind) {
     }
 }
 
-static QString kindDisplayName(AssetKind kind) {
-    switch (kind) {
-        case AssetKind::Video: return "视频轨";
-        case AssetKind::Image: return "图片轨";
-        case AssetKind::Text:  return "字幕轨";
-        case AssetKind::Audio: return "音频轨";
-        case AssetKind::Live:  return "实况轨";
-        case AssetKind::Control: return "指令轨";
-        case AssetKind::Artnet:  return "灯光轨";
-        case AssetKind::Mapping: return "映射轨";
-        default:               return "轨道";
-    }
-}
-
 // ---------------------------------------------------------------------------
 // 新增轨道（时间轴右键）：工作副本 + 模型 双写。
 // 【2026-11-15 轨道去类型化】kind = Unknown 合法（无类型轨道——Add Track
-// 单项入口）；kind 仅作显示提示，不再拒绝任何取值
+// 单项入口）；kind 仅作旧场景兼容路径的内部标记，默认名不再按类型区分，
+// 统一 "Track N"（id 仍带 kindShortName 便于内部辨识）
 // ---------------------------------------------------------------------------
 int QtTimelineModelAdapter::addTrackWithKind(AssetKind kind) {
     if (!work_) return -1;
@@ -1653,8 +1640,8 @@ int QtTimelineModelAdapter::addTrackWithKind(AssetKind kind) {
 
     ms::Track tr;
     tr.id   = id;
-    tr.name = QString("%1 %2").arg(kindDisplayName(kind)).arg(n - 1)
-                  .toStdString(); // "视频轨 2"（n-1：循环里先自增）
+    tr.name = QString("Track %1").arg(n - 1)
+                  .toStdString(); // "Track 2"（n-1：循环里先自增）
     tr.kind = kind;
     work_->timeline.tracks.push_back(tr);
 

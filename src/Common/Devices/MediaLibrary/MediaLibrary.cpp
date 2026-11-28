@@ -44,11 +44,11 @@ bool copyFileWithProgress(const QString& srcPath, const QString& dstPath,
     QFile in(srcPath);
     QFile out(dstPath);
     if (!in.open(QIODevice::ReadOnly)) {
-        *err = QStringLiteral("无法打开源文件：%1").arg(in.errorString());
+        *err = QCoreApplication::translate("MediaLibrary", "无法打开源文件：%1").arg(in.errorString());
         return false;
     }
     if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        *err = QStringLiteral("无法写入目标文件：%1").arg(out.errorString());
+        *err = QCoreApplication::translate("MediaLibrary", "无法写入目标文件：%1").arg(out.errorString());
         return false;
     }
     const qint64 total = in.size();
@@ -59,7 +59,7 @@ bool copyFileWithProgress(const QString& srcPath, const QString& dstPath,
     while (!in.atEnd()) {
         const qint64 n = in.read(buf.data(), kChunk);
         if (n < 0 || out.write(buf.constData(), n) != n) {
-            *err = QStringLiteral("复制失败：%1").arg(out.errorString());
+            *err = QCoreApplication::translate("MediaLibrary", "复制失败：%1").arg(out.errorString());
             out.close();
             QFile::remove(dstPath);
             return false;
@@ -139,7 +139,7 @@ MediaLibrary::MediaLibrary(QObject* parent)
             addFile(out);  // HAP 版本入库（原始文件已被删除并改名为最终名）
             refresh();     // 清除指向已删除原文件的条目；mov 源条目路径==最终名会保留
         } else if (!success) {
-            setEntryProgress(src, -1, QStringLiteral("【转码失败】"));
+            setEntryProgress(src, -1, tr("【转码失败】"));
             qCWarning(logTranscoder) << "转码失败:" << src << msg;
         }
         // 跳过（已是 HAP）时仅清除状态，无额外动作
@@ -218,7 +218,7 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
     for (const QString& p : absPaths) {
         const QFileInfo fi(p);
         if (!fi.exists() || !fi.isFile()) {
-            failures << QStringLiteral("%1：文件不存在或不可访问").arg(p);
+            failures << tr("%1：文件不存在或不可访问").arg(p);
             continue;
         }
 
@@ -232,12 +232,12 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
         // 目标路径为存储目录下同名文件；同名覆盖策略保持既有语义（先删旧文件）
         const QString targetPath = storage.absoluteFilePath(fi.fileName());
         if (s_activeCopies.contains(targetPath)) {
-            failures << QStringLiteral("%1：同名文件正在导入中，请稍后再试").arg(fi.fileName());
+            failures << tr("%1：同名文件正在导入中，请稍后再试").arg(fi.fileName());
             continue;
         }
         if (QFile::exists(targetPath)) {
             if (!QFile::remove(targetPath)) {
-                failures << QStringLiteral("%1：无法覆盖库内同名文件").arg(fi.fileName());
+                failures << tr("%1：无法覆盖库内同名文件").arg(fi.fileName());
                 continue;
             }
             removeItemForPath(targetPath); // 旧条目一并移除，新条目重新编号
@@ -253,8 +253,8 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
     // 批量结束在此统一 emit libraryChanged 一次
     if (!failures.isEmpty()) {
         QMessageBox::warning(nullptr,
-                             QStringLiteral("导入失败"),
-                             QStringLiteral("以下文件导入失败：\n\n%1").arg(failures.join(QLatin1Char('\n'))));
+                             tr("导入失败"),
+                             tr("以下文件导入失败：\n\n%1").arg(failures.join(QLatin1Char('\n'))));
     }
     emit libraryChanged();
 }
@@ -323,8 +323,8 @@ void MediaLibrary::removeIndexes(const QModelIndexList& indexes)
             if (!QFile::remove(path)) {
                 // 删除失败：提示并跳过该项删除
                 QMessageBox::warning(nullptr,
-                                     QStringLiteral("删除失败"),
-                                     QStringLiteral("无法删除文件：\n%1").arg(path));
+                                     tr("删除失败"),
+                                     tr("无法删除文件：\n%1").arg(path));
                 continue;
             }
         }
@@ -358,8 +358,8 @@ void MediaLibrary::clearLibrary()
             if (!path.isEmpty() && isInStorageDir(path)) {
                 if (!QFile::remove(path)) {
                     QMessageBox::warning(nullptr,
-                                         QStringLiteral("删除失败"),
-                                         QStringLiteral("无法删除文件：\n%1").arg(path));
+                                         tr("删除失败"),
+                                         tr("无法删除文件：\n%1").arg(path));
                     // 删除失败则保留该项
                     continue;
                 }
@@ -706,7 +706,7 @@ void MediaLibrary::addPendingEntry(const QString& targetPath)
     group->appendRow(item);
     renumberCategory(group);
 
-    m_statusByPath[targetPath] = QStringLiteral("复制中…");
+    m_statusByPath[targetPath] = tr("复制中…");
     refreshEntryText(item);
 }
 
@@ -742,7 +742,7 @@ void MediaLibrary::startBackgroundCopy(const QString& srcPath, const QString& ta
                 QMetaObject::invokeMethod(this, [this, targetPath, percent] {
                     if (s_activeCopies.contains(targetPath)) {
                         setEntryProgress(targetPath, percent,
-                                         QStringLiteral("复制中 %1%").arg(percent));
+                                         tr("复制中 %1%").arg(percent));
                     }
                 }, Qt::QueuedConnection);
             }, &err);
@@ -751,7 +751,7 @@ void MediaLibrary::startBackgroundCopy(const QString& srcPath, const QString& ta
             // 提交前已删旧文件且 s_activeCopies 拒绝同名并发）
             if (!QFile::rename(tmpPath, targetPath)) {
                 QFile::remove(tmpPath);
-                err = QStringLiteral("复制完成但落位失败（改名 %1 → %2）").arg(tmpPath, targetPath);
+                err = tr("复制完成但落位失败（改名 %1 → %2）").arg(tmpPath, targetPath);
                 ok = false;
             }
         } else {
@@ -775,7 +775,7 @@ void MediaLibrary::finishBackgroundCopy(const QString& targetPath, bool ok, cons
         maybeTranscode(targetPath);
     } else {
         qCWarning(logTranscoder) << "导入复制失败:" << targetPath << err;
-        setEntryProgress(targetPath, -1, QStringLiteral("【复制失败】"));
+        setEntryProgress(targetPath, -1, tr("【复制失败】"));
     }
     emit libraryChanged();
 }

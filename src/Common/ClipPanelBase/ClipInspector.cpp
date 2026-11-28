@@ -19,6 +19,7 @@
 
 #include <algorithm> // std::clamp（分量数钳制）
 
+#include <QCoreApplication>
 #include <QGridLayout>
 #include <QLabel>
 #include <QSignalBlocker>
@@ -45,7 +46,8 @@ ClipInspector::ClipInspector(std::vector<FieldDef> fields, QWidget* parent)
     // 行名宽度不同导致值区起点漂移）
     grid->setColumnMinimumWidth(
         0, QFontMetrics(box->font())
-               .horizontalAdvance(QStringLiteral("音频增益")) +
+               .horizontalAdvance(QCoreApplication::translate(
+                   "ClipSchema", "音频增益")) +
                8);
     grid->setColumnStretch(0, 0);
 
@@ -64,10 +66,11 @@ ClipInspector::ClipInspector(std::vector<FieldDef> fields, QWidget* parent)
         Row r;
         r.fd = &fields_[i];
 
-        auto* name_lbl = new QLabel(QString::fromUtf8(fd.label), box);
+        auto* name_lbl = new QLabel(
+            QCoreApplication::translate("ClipSchema", fd.label), box);
         name_lbl->setToolTip(
-            QStringLiteral("%1（key=%2）").arg(QString::fromUtf8(fd.label),
-                                               QString::fromUtf8(fd.key)));
+            tr("%1（key=%2）").arg(QCoreApplication::translate("ClipSchema", fd.label),
+                                   QString::fromUtf8(fd.key)));
         grid->addWidget(name_lbl, row, 0);
 
         const int comps = std::clamp(fd.components, 1, 3);

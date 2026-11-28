@@ -5,6 +5,7 @@
 #include <QSpacerItem>
 #include <QVBoxLayout>
 #include "Common/Devices/MtcDevices/mtcsender.h"
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -15,8 +16,8 @@ MTCGeneratorInterface::MTCGeneratorInterface(QWidget *parent)
     , timeCodeOffsetSpinBox(new IntDragValueWidget(this))
     , timeCodeTypeComboBox(new QComboBox(this))
     , midiDeviceComboBox(new QComboBox(this))
-    , startButton(new QPushButton(QStringLiteral("Start"), this))
-    , resetButton(new QPushButton(QStringLiteral("Reset"), this))
+    , startButton(new QPushButton(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "启动"), this))
+    , resetButton(new QPushButton(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "重置"), this))
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -41,12 +42,12 @@ MTCGeneratorInterface::MTCGeneratorInterface(QWidget *parent)
     layout->addWidget(timeCodeLabel);
 
     timeCodeStatusLabel->setAlignment(Qt::AlignCenter);
-    timeCodeStatusLabel->setText("Status: Idle");
+    timeCodeStatusLabel->setText(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "状态: 空闲"));
     layout->addWidget(timeCodeStatusLabel);
 
-    addRow(tr("MIDI输出:"), midiDeviceComboBox);
-    addRow(tr("偏移:"), timeCodeOffsetSpinBox);
-    addRow(tr("类型:"), timeCodeTypeComboBox);
+    addRow(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "MIDI输出:"), midiDeviceComboBox);
+    addRow(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "偏移:"), timeCodeOffsetSpinBox);
+    addRow(QCoreApplication::translate("Nodes::MTCGeneratorInterface", "类型:"), timeCodeTypeComboBox);
 
     startButton->setCheckable(true);
     startButton->setAutoExclusive(false);

@@ -9,6 +9,7 @@
 #include "QLabel"
 #include "QLayout"
 #include <QPushButton>
+#include <QCoreApplication>
 #include <QVariantMap>
 #include <QComboBox>
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
@@ -48,7 +49,9 @@ class ImageLayoutInterface final : public QWidget{
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             // 基本初始化
-            layoutCombo->addItems({"Horizontal", "Vertical", "Grid"});
+            layoutCombo->addItems({QCoreApplication::translate("Nodes::ImageLayoutInterface", "水平"),
+                                   QCoreApplication::translate("Nodes::ImageLayoutInterface", "垂直"),
+                                   QCoreApplication::translate("Nodes::ImageLayoutInterface", "网格")});
             rowsSpin->setRange(1, 64);
             colsSpin->setRange(1, 64);
             spacingSpin->setRange(0, 1024);
@@ -65,18 +68,18 @@ class ImageLayoutInterface final : public QWidget{
         IntDragValueWidget *widthEdit=new IntDragValueWidget();
         IntDragValueWidget *heightEdit=new IntDragValueWidget();
         // QLabel *display=new QLabel();
-        QPushButton *colorEditButton=new QPushButton("Color");
+        QPushButton *colorEditButton=new QPushButton(QCoreApplication::translate("Nodes::ImageLayoutInterface", "颜色"));
         QComboBox *layoutCombo = new QComboBox();
         IntDragValueWidget *rowsSpin = new IntDragValueWidget();
         IntDragValueWidget *colsSpin = new IntDragValueWidget();
         IntDragValueWidget *spacingSpin = new IntDragValueWidget();
     private:
-        QLabel *sizeWidthLabel=new QLabel("Width: ");
-        QLabel *sizeHeightLabel=new QLabel("Height: ");
-        QLabel *layoutLabel = new QLabel("Layout: ");
-        QLabel *rowsLabel = new QLabel("Rows: ");
-        QLabel *colsLabel = new QLabel("Cols: ");
-        QLabel *spacingLabel = new QLabel("Spacing: ");
+        QLabel *sizeWidthLabel=new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "宽度："));
+        QLabel *sizeHeightLabel=new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "高度："));
+        QLabel *layoutLabel = new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "布局："));
+        QLabel *rowsLabel = new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "行数："));
+        QLabel *colsLabel = new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "列数："));
+        QLabel *spacingLabel = new QLabel(QCoreApplication::translate("Nodes::ImageLayoutInterface", "间距："));
 
 
     };

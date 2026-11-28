@@ -13,6 +13,7 @@
 #include "QComboBox"
 #include "QVariant"
 #include <QSpacerItem>
+#include <QCoreApplication>
 using namespace std;
 namespace Nodes
 {
@@ -63,12 +64,12 @@ namespace Nodes
         QLineEdit *hostLineEdit=new QLineEdit();
         IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
-        QPushButton *sendButton=new QPushButton("Send");
+        QPushButton *sendButton=new QPushButton(QCoreApplication::translate("Nodes::TCPServerInterface", "发送"));
         QComboBox* format=new QComboBox();
     private:
-        QLabel *hostLabel=new QLabel("host: ");
-        QLabel *portLabel=new QLabel("port: ");
-        QLabel *valueLabel=new QLabel("value: ");
+        QLabel *hostLabel=new QLabel(QCoreApplication::translate("Nodes::TCPServerInterface", "主机："));
+        QLabel *portLabel=new QLabel(QCoreApplication::translate("Nodes::TCPServerInterface", "端口："));
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::TCPServerInterface", "值："));
 
 
         

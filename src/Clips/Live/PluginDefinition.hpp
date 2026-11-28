@@ -44,7 +44,7 @@ public:
 
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表下放）
-    QString clipDisplayName() const override { return QStringLiteral("实况"); }
+    QString clipDisplayName() const override { return tr("实况"); }
     /// 无媒体绑定语义：「指定媒体文件…」与实况区源选择功能重复，绑定/
     /// 选择入口统一归实况区（2026-11-09 用户定案）。实况源名是动态值
     ///（读 Asset.live_source_name），仍归宿主解析，bindingHint 不用。

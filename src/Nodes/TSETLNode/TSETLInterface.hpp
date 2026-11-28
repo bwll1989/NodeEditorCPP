@@ -16,6 +16,7 @@
 #include "QGridLayout"
 #include "QDateTime"
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 using namespace std;
 
 namespace Nodes
@@ -68,15 +69,15 @@ namespace Nodes
         void updateConnectionStatus(bool connected) {
             connectionStatus->setChecked(connected);
             if (connected) {
-                connectionStatus->setText("已连接");
+                connectionStatus->setText(QCoreApplication::translate("Nodes::TSETLInterface", "已连接"));
                 connectionStatus->setStyleSheet("color: green; font-weight: bold;");
             } else {
-                connectionStatus->setText("未连接");
+                connectionStatus->setText(QCoreApplication::translate("Nodes::TSETLInterface", "未连接"));
                 connectionStatus->setStyleSheet("color: red; font-weight: bold;");
                 // 清空信号信息
-                lastSignalLabel->setText("Latest signal: --");
-                lastTimeLabel->setText("Latest time: --");
-                signalCountLabel->setText("Signal count: 0");
+                lastSignalLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "最新信号: --"));
+                lastTimeLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "最新时间: --"));
+                signalCountLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "信号计数: 0"));
             }
         }
         
@@ -86,26 +87,26 @@ namespace Nodes
          * @param dateTime 时间戳
          */
         void updateLastSignal(const QString &signalId, const QString &dateTime) {
-            lastSignalLabel->setText(QString("Latest signal: %1").arg(signalId));
-            lastTimeLabel->setText(QString("Latest time: %1").arg(dateTime));
+            lastSignalLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "最新信号: %1").arg(signalId));
+            lastTimeLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "最新时间: %1").arg(dateTime));
 
             // 更新计数器
             signalCount++;
-            signalCountLabel->setText(QString("信号计数: %1").arg(signalCount));
+            signalCountLabel->setText(QCoreApplication::translate("Nodes::TSETLInterface", "信号计数: %1").arg(signalCount));
 
         }
         
     public:
-        QPushButton *connectionStatus = new QPushButton("未连接");
-        QLineEdit *lastSignalLabel = new QLineEdit("Latest signal: --");
-        QLineEdit *lastTimeLabel = new QLineEdit("Latest time: --");
-        QLineEdit *signalCountLabel = new QLineEdit("Signal count: 0");
+        QPushButton *connectionStatus = new QPushButton(QCoreApplication::translate("Nodes::TSETLInterface", "未连接"));
+        QLineEdit *lastSignalLabel = new QLineEdit(QCoreApplication::translate("Nodes::TSETLInterface", "最新信号: --"));
+        QLineEdit *lastTimeLabel = new QLineEdit(QCoreApplication::translate("Nodes::TSETLInterface", "最新时间: --"));
+        QLineEdit *signalCountLabel = new QLineEdit(QCoreApplication::translate("Nodes::TSETLInterface", "信号计数: 0"));
     private:
         QVBoxLayout *main_layout;
         // 连接设置相关
         QGroupBox *connectionGroup;
-        QLabel *hostLabel = new QLabel("主机地址:");
-        QLabel *portLabel = new QLabel("端口:");
+        QLabel *hostLabel = new QLabel(QCoreApplication::translate("Nodes::TSETLInterface", "主机地址:"));
+        QLabel *portLabel = new QLabel(QCoreApplication::translate("Nodes::TSETLInterface", "端口:"));
         
         // 状态显示相关
         QGroupBox *statusGroup;
@@ -120,7 +121,7 @@ namespace Nodes
          */
         void createConnectionGroup()
         {
-            connectionGroup = new QGroupBox("连接设置", this);
+            connectionGroup = new QGroupBox(QCoreApplication::translate("Nodes::TSETLInterface", "连接设置"), this);
             QGridLayout *connectionLayout = new QGridLayout(connectionGroup);
             
             connectionLayout->addWidget(hostLabel, 0, 0, 1, 1);
@@ -135,7 +136,7 @@ namespace Nodes
          * @brief 创建信号信息组
          */
         void createSignalGroup() {
-            signalGroup = new QGroupBox("信号信息", this);
+            signalGroup = new QGroupBox(QCoreApplication::translate("Nodes::TSETLInterface", "信号信息"), this);
             QVBoxLayout *signalLayout = new QVBoxLayout(signalGroup);
             
             // 设置标签样式

@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 using namespace std;
 namespace Nodes
 {
@@ -65,14 +66,14 @@ namespace Nodes
         QLineEdit *targetHostEdit=new QLineEdit();
         IntDragValueWidget *targetPortSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
-        QPushButton *sendButton=new QPushButton("Send");
+        QPushButton *sendButton=new QPushButton(QCoreApplication::translate("Nodes::UDPSocketInterface", "发送"));
         QComboBox *format=new QComboBox();
     private:
-        QLabel *listeningHostLabel=new QLabel("listening host: ");
-        QLabel *listeningPortLabel=new QLabel("listening port: ");
-        QLabel *targetHostLabel=new QLabel("target host: ");
-        QLabel *targetPort=new QLabel("target port: ");
-        QLabel *valueLabel=new QLabel("value: ");
+        QLabel *listeningHostLabel=new QLabel(QCoreApplication::translate("Nodes::UDPSocketInterface", "监听主机："));
+        QLabel *listeningPortLabel=new QLabel(QCoreApplication::translate("Nodes::UDPSocketInterface", "监听端口："));
+        QLabel *targetHostLabel=new QLabel(QCoreApplication::translate("Nodes::UDPSocketInterface", "目标主机："));
+        QLabel *targetPort=new QLabel(QCoreApplication::translate("Nodes::UDPSocketInterface", "目标端口："));
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::UDPSocketInterface", "值："));
 
     };
 }

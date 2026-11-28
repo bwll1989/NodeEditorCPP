@@ -764,7 +764,7 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
     // 去类型化】片段类型不再由轨道决定——子菜单列出插件类型表，用户显式
     // 选择要创建的片段类型（onAddClip 的 type 参数）。
     if (index.isValid() && !index.parent().isValid()) {
-        QMenu* addItemMenu = contextMenu.addMenu("Add Item");
+        QMenu* addItemMenu = contextMenu.addMenu(tr("添加片段"));
         addItemMenu->setIcon(QIcon(":/icons/icons/add.png"));
         const int trackIndex = index.row();
         const qint64 startFrame =
@@ -774,11 +774,11 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
                 ? getModel()->getPluginLoader()->getAvailableTypes()
                 : QStringList();
         if (itemTypes.isEmpty()) {
-            QAction* disabled = addItemMenu->addAction("（无可用片段插件）");
+            QAction* disabled = addItemMenu->addAction(tr("（无可用片段插件）"));
             disabled->setEnabled(false);
         }
         for (const QString& type : itemTypes) {
-            QAction* addItemAction = addItemMenu->addAction("Add " + type + " Clip");
+            QAction* addItemAction = addItemMenu->addAction(tr("添加 %1 片段").arg(type));
             connect(addItemAction, &QAction::triggered, [this, trackIndex, startFrame, type]() {
                 getModel()->onAddClip(trackIndex, startFrame, type);
             });
@@ -802,7 +802,7 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
                 const bool custom =
                     kfClip->appendKeyframeContextMenu(contextMenu, kf);
                 if (!custom) {
-                    QAction* deleteKeyAction = new QAction("Delete Keyframe", this);
+                    QAction* deleteKeyAction = new QAction(tr("删除关键帧"), this);
                     deleteKeyAction->setIcon(QIcon(":/icons/icons/trash.png"));
                     // 【悬垂防御】菜单 exec 是模态事件循环——期间片段可能被
                     // 其他路径删除，QModelIndex 会失效；持久索引在行删除后
@@ -818,7 +818,7 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
                 }
             }
         }
-        QAction* deleteClipAction = new QAction("Delete Clip", this);
+        QAction* deleteClipAction = new QAction(tr("删除片段"), this);
         deleteClipAction->setIcon(QIcon(":/icons/icons/trash.png"));
         // 【悬垂防御】同上：模态菜单期间行可能被删——持久索引失效即短路
         //（onDeleteClip 内部另有行号越界双重防御）。
@@ -1543,8 +1543,8 @@ void BaseTimelineView::beginClipDrag(AbstractClipModel* clip, const QModelIndex&
     // 基线），拖拽全程一条历史。
     Model->beginInteractiveGeometryChange(
         clip, m_mouseUnderClipEdge == hoverState::CENTER
-                  ? QStringLiteral("移动片段")
-                  : QStringLiteral("裁边片段"));
+                  ? tr("移动片段")
+                  : tr("裁边片段"));
     // 不在 QAbstractScrollArea 上 grabMouse。按下时鼠标已经由视口捕获，
     // 再抢到外层视图会让松手事件到不了 mouseReleaseEvent，拖拽无法结束。
     m_staticCacheDirty = true;

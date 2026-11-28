@@ -9,6 +9,7 @@
 #include <QSerialPort>
 #include "QSerialPortInfo"
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -33,11 +34,11 @@ namespace Nodes
             dataBitsCombo->addItem("8", QSerialPort::Data8);
             dataBitsCombo->setCurrentIndex(3);
 
-            parityCombo->addItem("None", QSerialPort::NoParity);
-            parityCombo->addItem("Even", QSerialPort::EvenParity);
-            parityCombo->addItem("Odd", QSerialPort::OddParity);
-            parityCombo->addItem("Space", QSerialPort::SpaceParity);
-            parityCombo->addItem("Mark", QSerialPort::MarkParity);
+            parityCombo->addItem(QCoreApplication::translate("Nodes::SerialPortInterface", "无"), QSerialPort::NoParity);
+            parityCombo->addItem(QCoreApplication::translate("Nodes::SerialPortInterface", "偶校验"), QSerialPort::EvenParity);
+            parityCombo->addItem(QCoreApplication::translate("Nodes::SerialPortInterface", "奇校验"), QSerialPort::OddParity);
+            parityCombo->addItem(QCoreApplication::translate("Nodes::SerialPortInterface", "空格"), QSerialPort::SpaceParity);
+            parityCombo->addItem(QCoreApplication::translate("Nodes::SerialPortInterface", "标记"), QSerialPort::MarkParity);
 
             stopBitsCombo->addItem("1", QSerialPort::OneStop);
             stopBitsCombo->addItem("1.5", QSerialPort::OneAndHalfStop);
@@ -67,7 +68,7 @@ namespace Nodes
             statusButton->setFlat(true);
             statusButton->setCheckable(true);
             statusButton->setEnabled(false);
-            statusButton->setText("Disconnect");
+            statusButton->setText(QCoreApplication::translate("Nodes::SerialPortInterface", "断开"));
             statusButton->setStyleSheet("color: red; font-weight: bold;");
 
             refreshPorts();
@@ -96,7 +97,7 @@ namespace Nodes
 
         QGridLayout *mainLayout = new QGridLayout(this);
         QComboBox *portCombo = new QComboBox();
-        QPushButton *refreshButton = new QPushButton("Refresh Ports");
+        QPushButton *refreshButton = new QPushButton(QCoreApplication::translate("Nodes::SerialPortInterface", "刷新端口"));
         IntDragValueWidget *baudRateSpinBox = new IntDragValueWidget();
         QComboBox *dataBitsCombo = new QComboBox();
         QComboBox *parityCombo = new QComboBox();
@@ -104,14 +105,14 @@ namespace Nodes
         QLineEdit *valueEdit = new QLineEdit();
         QComboBox *formatCombo = new QComboBox();
         QPushButton *statusButton = new QPushButton();
-        QPushButton *sendButton = new QPushButton("Send");
+        QPushButton *sendButton = new QPushButton(QCoreApplication::translate("Nodes::SerialPortInterface", "发送"));
 
     private:
-        QLabel *portLabel = new QLabel("Port");
-        QLabel *baudRateLabel = new QLabel("Baud Rate");
-        QLabel *dataBitsLabel = new QLabel("Data Bits");
-        QLabel *parityLabel = new QLabel("Parity");
-        QLabel *stopBitsLabel = new QLabel("Stop Bits");
-        QLabel *valueLabel = new QLabel("Value");
+        QLabel *portLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "端口"));
+        QLabel *baudRateLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "波特率"));
+        QLabel *dataBitsLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "数据位"));
+        QLabel *parityLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "校验位"));
+        QLabel *stopBitsLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "停止位"));
+        QLabel *valueLabel = new QLabel(QCoreApplication::translate("Nodes::SerialPortInterface", "值"));
     };
 }

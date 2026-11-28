@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 /**
  * @brief Modbus主机界面类
@@ -33,28 +34,28 @@ public:
         mainLayout->setSpacing(6);
 
         // 连接设置
-        auto connectionGroup = new QGroupBox("连接设置", this);
+        auto connectionGroup = new QGroupBox(QCoreApplication::translate("USR_IO808Interface", "连接设置"), this);
         auto connectionLayout = new QGridLayout(connectionGroup);
         connectionLayout->setContentsMargins(6, 8, 6, 6);
         connectionLayout->setSpacing(4);
 
-        connectionLayout->addWidget(new QLabel("IP地址:", this), 0, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("USR_IO808Interface", "IP地址:"), this), 0, 0);
         _hostEdit = new QLineEdit("127.0.0.1", this);
         connectionLayout->addWidget(_hostEdit, 0, 1);
 
-        connectionLayout->addWidget(new QLabel("端口:", this), 1, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("USR_IO808Interface", "端口:"), this), 1, 0);
         _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(8080);
         connectionLayout->addWidget(_portEdit, 1, 1);
 
-        connectionLayout->addWidget(new QLabel("ServerID(Useless):", this), 2, 0);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("USR_IO808Interface", "服务器 ID（无效）："), this), 2, 0);
         _serverId = new IntDragValueWidget(this);
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1);
 
-        _statusLabel = new QPushButton("状态: 未连接", this);
+        _statusLabel = new QPushButton(QCoreApplication::translate("USR_IO808Interface", "状态: 未连接"), this);
         _statusLabel->setEnabled(false);
         _statusLabel->setCheckable(true);
         _statusLabel->setFlat(true);
@@ -63,19 +64,19 @@ public:
 
         mainLayout->addWidget(connectionGroup);
 
-        _readAll = new QPushButton("Read All", this);
+        _readAll = new QPushButton(QCoreApplication::translate("USR_IO808Interface", "全部读取"), this);
         _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
         _readAll->setEnabled(false);
         mainLayout->addWidget(_readAll);
 
         // DI 状态（4×2 网格，保持原有布局）
-        auto inputGroup = new QGroupBox("DI 状态 (0x0020~0x0027)", this);
+        auto inputGroup = new QGroupBox(QCoreApplication::translate("USR_IO808Interface", "DI 状态 (0x0020~0x0027)"), this);
         auto inputLayout = new QGridLayout(inputGroup);
         inputLayout->setContentsMargins(6, 8, 6, 6);
         inputLayout->setSpacing(4);
 
         for (int i = 0; i < 8; ++i) {
-            _inputLabels[i] = new QCheckBox(QString("DI%1: 关").arg(i), this);
+            _inputLabels[i] = new QCheckBox(QCoreApplication::translate("USR_IO808Interface", "DI%1: 关").arg(i), this);
             _inputLabels[i]->setEnabled(false);
             _inputLabels[i]->setStyleSheet("color: gray; font-weight: bold;");
             _inputLabels[i]->setMinimumWidth(80);
@@ -85,7 +86,7 @@ public:
         mainLayout->addWidget(inputGroup);
 
         // DO 控制（4×2 网格，保持原有布局）
-        auto outputGroup = new QGroupBox("DO 控制 (0x0000~0x0007)", this);
+        auto outputGroup = new QGroupBox(QCoreApplication::translate("USR_IO808Interface", "DO 控制 (0x0000~0x0007)"), this);
         auto outputLayout = new QGridLayout(outputGroup);
         outputLayout->setContentsMargins(6, 8, 6, 6);
         outputLayout->setSpacing(4);
@@ -128,7 +129,7 @@ public:
     void setInputState(int index, bool state) {
         if (index >= 0 && index < 8) {
             _inputLabels[index]->setChecked(state);
-            _inputLabels[index]->setText(QString("DI%1: %2").arg(index).arg(state ? "开" : "关"));
+            _inputLabels[index]->setText(QString("DI%1: %2").arg(index).arg(state ? "开" : QCoreApplication::translate("USR_IO808Interface", "关")));
             _inputLabels[index]->setStyleSheet(state ? "color: green; font-weight: bold;" : "color: gray; font-weight: bold;");
         }
     }
@@ -184,7 +185,7 @@ public:
             }
             _readAll->setEnabled(true);
             _statusLabel->setChecked(true);
-            _statusLabel->setText("状态: 已连接");
+            _statusLabel->setText(QCoreApplication::translate("USR_IO808Interface", "状态: 已连接"));
             _statusLabel->setStyleSheet("color: green; font-weight: bold;");
         } else {
             // 禁用所有输出复选框和Read All按钮
@@ -193,7 +194,7 @@ public:
             }
             _readAll->setEnabled(false);
             _statusLabel->setChecked(false);
-            _statusLabel->setText("状态: 未连接");
+            _statusLabel->setText(QCoreApplication::translate("USR_IO808Interface", "状态: 未连接"));
             _statusLabel->setStyleSheet("color: red; font-weight: bold;");
         }
     }

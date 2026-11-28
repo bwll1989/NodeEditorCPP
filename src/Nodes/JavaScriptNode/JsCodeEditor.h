@@ -9,6 +9,7 @@
 // Qt
 #include <QWidget> // Required for inheritance
 #include <QAction>
+#include <QCoreApplication>
 #include <QMenu>
 #include <QMenuBar>
 #include <QString>
@@ -17,6 +18,7 @@
 #include <QCloseEvent>
 #include "QPushButton"
 #include "Qsci/qsciscintilla.h"
+#include <QCoreApplication>
 class QVBoxLayout;
 class QComboBox;
 class QCheckBox;
@@ -40,8 +42,8 @@ namespace Nodes
         explicit JsCodeEditor(QString code="",QWidget* parent=nullptr);
         QString loadCode(QString path);
         void loadCodeFromCode(QString code);
-        QPushButton *importJS=new QPushButton("保存");
-        QPushButton *exportJS=new QPushButton("导出为节点");
+        QPushButton *importJS=new QPushButton(QCoreApplication::translate("Nodes::JsCodeEditor", "保存"));
+        QPushButton *exportJS=new QPushButton(QCoreApplication::translate("Nodes::JsCodeEditor", "导出为节点"));
 
     public Q_SLOTS:
         QString saveCode();

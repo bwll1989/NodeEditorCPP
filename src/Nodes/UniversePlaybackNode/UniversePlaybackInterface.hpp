@@ -11,6 +11,7 @@
 #include <QTimeEdit>
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 namespace Nodes
 {
     /**
@@ -35,16 +36,16 @@ namespace Nodes
         IntDragValueWidget *netSpinBox = new IntDragValueWidget(this);
         
         // 控制按钮
-        QPushButton *clearButton = new QPushButton("清空数据", this);
+        QPushButton *clearButton = new QPushButton(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "清空数据"), this);
         // QPushButton *selectFileButton = new QPushButton("选择视频", this);
-        QPushButton *playButton = new QPushButton("播放", this);
+        QPushButton *playButton = new QPushButton(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "播放"), this);
         // 循环播放控制
-        QCheckBox *loopCheckBox = new QCheckBox("循环播放", this);  // 新增：循环播放复选框
+        QCheckBox *loopCheckBox = new QCheckBox(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "循环播放"), this);  // 新增：循环播放复选框
         SelectorComboBox* _fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::DMX);
         // // 信息显示
         // QLabel *fileNameLabel = new QLabel("未选择文件", this);
         QLabel *videoInfoLabel = new QLabel("", this);
-        QLabel *statusLabel = new QLabel("就绪", this);
+        QLabel *statusLabel = new QLabel(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "就绪"), this);
         /**
          * 函数级注释：当前播放时间显示，格式 hh:mm:ss.zzz，只读
          */
@@ -58,7 +59,7 @@ namespace Nodes
          */
         void updateFileInfo(const QString& fileName, double duration, double fps,int videoHeight) {
             QFileInfo fileInfo(fileName);
-            videoInfoLabel->setText(QString("时长: %1s, 帧率: %2fps, 域数量: %3")
+            videoInfoLabel->setText(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "时长: %1s, 帧率: %2fps, 域数量: %3")
                                    .arg(duration, 0, 'f', 1).arg(fps, 0, 'f', 1).arg(videoHeight));
         }
         
@@ -68,7 +69,7 @@ namespace Nodes
          */
         void updatePlaybackState(bool playing) {
             playButton->setChecked(playing);
-            statusLabel->setText(playing ? "播放中" : "已停止");
+            statusLabel->setText(playing ? "播放中" : QCoreApplication::translate("Nodes::UniversePlaybackInterface", "已停止"));
         }
         
         /**
@@ -76,7 +77,7 @@ namespace Nodes
          * @param error 错误信息
          */
         void showError(const QString& error) {
-            statusLabel->setText(QString("错误: %1").arg(error));
+            statusLabel->setText(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "错误: %1").arg(error));
             statusLabel->setStyleSheet("color: red;");
         }
 
@@ -124,28 +125,28 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createUniverseConfigGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *configGroup = new QGroupBox("Universe 配置", this);
+            QGroupBox *configGroup = new QGroupBox(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "Universe 配置"), this);
             QGridLayout *configLayout = new QGridLayout(configGroup);
             
             // Universe设置
             configLayout->addWidget(new QLabel("Universe:", this), 0, 0);
             universeSpinBox->setRange(0, 15);
             universeSpinBox->setValue(0);
-            universeSpinBox->setToolTip("Universe编号 (0-15)");
+            universeSpinBox->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "Universe编号 (0-15)"));
             configLayout->addWidget(universeSpinBox, 0, 1);
             
             // Subnet设置
             configLayout->addWidget(new QLabel("Subnet:", this), 1, 0);
             subnetSpinBox->setRange(0, 15);
             subnetSpinBox->setValue(0);
-            subnetSpinBox->setToolTip("Subnet编号 (0-15)");
+            subnetSpinBox->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "Subnet编号 (0-15)"));
             configLayout->addWidget(subnetSpinBox, 1, 1);
             
             // Net设置
             configLayout->addWidget(new QLabel("Net:", this), 2, 0);
             netSpinBox->setRange(0, 127);
             netSpinBox->setValue(0);
-            netSpinBox->setToolTip("Net编号 (0-127)");
+            netSpinBox->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "Net编号 (0-127)"));
             configLayout->addWidget(netSpinBox, 2, 1);
             
             parentLayout->addWidget(configGroup);
@@ -156,7 +157,7 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createVideoFileGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *fileGroup = new QGroupBox("DMX文件", this);
+            QGroupBox *fileGroup = new QGroupBox(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "DMX文件"), this);
             QVBoxLayout *fileLayout = new QVBoxLayout(fileGroup);
             
             // 文件选择按钮
@@ -174,7 +175,7 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createPlaybackControlGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *playbackGroup = new QGroupBox("播放控制", this);
+            QGroupBox *playbackGroup = new QGroupBox(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "播放控制"), this);
             QGridLayout *playbackLayout = new QGridLayout(playbackGroup);
             currentTimeEdit->setDisplayFormat("hh:mm:ss.zzz");
             currentTimeEdit->setReadOnly(true);
@@ -182,12 +183,12 @@ namespace Nodes
             currentTimeEdit->setTime(QTime(0,0,0,0));
             playbackLayout->addWidget(currentTimeEdit, 0, 0,1,2);
             // 循环播放复选框
-            loopCheckBox->setToolTip("启用后播放结束时会自动重新开始");
+            loopCheckBox->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "启用后播放结束时会自动重新开始"));
            
             connect(loopCheckBox, &QCheckBox::toggled, this, &UniversePlaybackInterface::loopStateChanged);
             playbackLayout->addWidget(loopCheckBox,1,0,1,2);
 
-            playButton->setToolTip("开始播放视频（25fps）");
+            playButton->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "开始播放视频（25fps）"));
             playButton->setCheckable(true);
             // connect(playButton, &QPushButton::chec, this, &UniversePlaybackInterface::playClicked);
             playbackLayout->addWidget(playButton,2,0,1,2);
@@ -198,7 +199,7 @@ namespace Nodes
             // playbackLayout->addWidget(stopButton,2,1,1,1);
 
             // 清空按钮
-            clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
+            clearButton->setToolTip(QCoreApplication::translate("Nodes::UniversePlaybackInterface", "清空当前Universe的所有DMX数据（将所有512个通道设置为0）"));
 
 
             // 连接清空按钮信号

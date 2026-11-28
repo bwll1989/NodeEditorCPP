@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QObject>
 #include <QString>
 #include <QColor>
@@ -307,13 +308,13 @@ public:
             removeMergedKeyAt(bf);
         });
         if (cks.size() > 1) {
-            QMenu* sub = menu.addMenu(QObject::tr("按参数删除"));
+            QMenu* sub = menu.addMenu(QCoreApplication::translate("SceneClipModel", "按参数删除"));
             for (const auto& [ch, kidx] : cks) {
                 const int prop = tween_dots_[ch].prop;
                 QPixmap pm(10, 10);
                 pm.fill(tweenPropColor(prop));
                 QAction* a = sub->addAction(
-                    QString::fromUtf8("%1 键").arg(tweenPropShortName(prop)));
+                    QCoreApplication::translate("SceneClipModel", "%1 键").arg(QCoreApplication::translate("TweenPalette", tweenPropShortName(prop))));
                 a->setIcon(QIcon(pm));
                 // 下标捕获（菜单模态 exec 内同步触发，无中间态风险）
                 QObject::connect(a, &QAction::triggered, [this, ch, kidx]() {

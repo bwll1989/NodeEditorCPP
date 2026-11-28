@@ -96,7 +96,7 @@ TextClipSection::TextClipSection(const ClipSectionContext& ctx, QWidget* parent)
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(4);
 
-    auto* box  = new QGroupBox(QStringLiteral("文本"), this);
+    auto* box  = new QGroupBox(tr("文本"), this);
     auto* lay  = new QVBoxLayout(box);
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
@@ -106,8 +106,8 @@ TextClipSection::TextClipSection(const ClipSectionContext& ctx, QWidget* parent)
     content_->setObjectName("textContent"); // 测试定位锚
     content_->setPlainText(QString::fromStdString(asset.text_content));
     content_->setMinimumHeight(56);
-    content_->setToolTip("文本内容；Enter 显式换行（无自动折行——"
-                         "拉伸归片段变换的宽/高）");
+    content_->setToolTip(tr("文本内容；Enter 显式换行（无自动折行——"
+                            "拉伸归片段变换的宽/高）"));
     lay->addWidget(content_);
 
     // ---- 样式表单（字体/字号/颜色/粗斜/对齐/背景）---------------------------
@@ -134,31 +134,31 @@ TextClipSection::TextClipSection(const ClipSectionContext& ctx, QWidget* parent)
     size_->setFixedWidth(96);
 
     // 文字颜色：按钮（选色入口）+ 预览色块
-    color_btn_    = new QPushButton(QStringLiteral("选色…"), box);
+    color_btn_    = new QPushButton(tr("选色…"), box);
     color_btn_->setObjectName("textColor");
     color_swatch_ = new QLabel(box);
     color_swatch_->setFixedSize(28, 16);
 
-    bold_   = new QCheckBox(QStringLiteral("粗体"), box);
+    bold_   = new QCheckBox(tr("粗体"), box);
     bold_->setObjectName("textBold");
     bold_->setChecked(asset.text_bold);
-    italic_ = new QCheckBox(QStringLiteral("斜体"), box);
+    italic_ = new QCheckBox(tr("斜体"), box);
     italic_->setObjectName("textItalic");
     italic_->setChecked(asset.text_italic);
 
     align_ = new QComboBox(box);
     align_->setObjectName("textAlign");
-    align_->addItem(QStringLiteral("左对齐"));   // currentIndex = 0（默认）
-    align_->addItem(QStringLiteral("居中"));     // 1
-    align_->addItem(QStringLiteral("右对齐"));   // 2
+    align_->addItem(tr("左对齐"));   // currentIndex = 0（默认）
+    align_->addItem(tr("居中"));     // 1
+    align_->addItem(tr("右对齐"));   // 2
     align_->setCurrentIndex(std::clamp(asset.text_h_align, 0, 2));
-    align_->setToolTip("多行文本的行间水平对齐（帧为自然尺寸，"
-                       "行间对齐是唯一的水平自由度）");
+    align_->setToolTip(tr("多行文本的行间水平对齐（帧为自然尺寸，"
+                          "行间对齐是唯一的水平自由度）"));
 
-    bg_enable_ = new QCheckBox(QStringLiteral("背景色块"), box);
+    bg_enable_ = new QCheckBox(tr("背景色块"), box);
     bg_enable_->setObjectName("textBgEnable");
     bg_enable_->setChecked(asset.text_bg_color != 0);
-    bg_btn_    = new QPushButton(QStringLiteral("选色…"), box);
+    bg_btn_    = new QPushButton(tr("选色…"), box);
     bg_btn_->setObjectName("textBgColor");
     bg_swatch_ = new QLabel(box);
     bg_swatch_->setFixedSize(28, 16);
@@ -167,7 +167,7 @@ TextClipSection::TextClipSection(const ClipSectionContext& ctx, QWidget* parent)
     // 样式行用水平排布压缩纵向高度（面板空间宝贵）
     auto* font_row = new QHBoxLayout();
     font_row->addWidget(font_, /*stretch=*/1);
-    font_row->addWidget(new QLabel(QStringLiteral("字号"), box));
+    font_row->addWidget(new QLabel(tr("字号"), box));
     font_row->addWidget(size_);
     auto* color_row = new QHBoxLayout();
     color_row->addWidget(color_btn_);
@@ -182,11 +182,11 @@ TextClipSection::TextClipSection(const ClipSectionContext& ctx, QWidget* parent)
     bg_row->addWidget(bg_btn_);
     bg_row->addWidget(bg_swatch_);
     bg_row->addStretch(1);
-    form->addRow(QStringLiteral("字体"), font_row);
-    form->addRow(QStringLiteral("文字颜色"), color_row);
-    form->addRow(QStringLiteral("字型"), style_row);
-    form->addRow(QStringLiteral("水平对齐"), align_);
-    form->addRow(QStringLiteral("背景"), bg_row);
+    form->addRow(tr("字体"), font_row);
+    form->addRow(tr("文字颜色"), color_row);
+    form->addRow(tr("字型"), style_row);
+    form->addRow(tr("水平对齐"), align_);
+    form->addRow(tr("背景"), bg_row);
     lay->addLayout(form);
 
     root->addWidget(box);
@@ -264,7 +264,7 @@ void TextClipSection::refreshFrom(const Asset& a) {
 // ---------------------------------------------------------------------------
 void TextClipSection::onPickTextColor() {
     const QColor c = QColorDialog::getColor(
-        fromRgb24(color_), this, QStringLiteral("文字颜色"));
+        fromRgb24(color_), this, tr("文字颜色"));
     if (!c.isValid()) return; // 取消/关闭：不动当前值
     color_ = toRgb24(c);
     updateSwatches();
@@ -274,7 +274,7 @@ void TextClipSection::onPickTextColor() {
 void TextClipSection::onPickBgColor() {
     const QColor init = bg_color_ ? fromRgb24(bg_color_) : QColor(Qt::white);
     const QColor c = QColorDialog::getColor(init, this,
-                                            QStringLiteral("背景颜色"));
+                                            tr("背景颜色"));
     if (!c.isValid()) return;
     bg_color_ = toRgb24(c);
     // 选了背景色即视为启用。勾选若实际改变状态会触发 toggled → 写回+

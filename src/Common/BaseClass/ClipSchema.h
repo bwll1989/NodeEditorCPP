@@ -37,6 +37,7 @@
 
 #include <cstdint>
 
+#include <QCoreApplication> // QT_TRANSLATE_NOOP（label 可提取译）
 #include <QString> // findTweenField 查找重载（BaseClass 本链 Qt）
 
 namespace ms {
@@ -74,7 +75,9 @@ inline constexpr int kFieldGroupComp   = 4; ///< 合成（不透明度/音频增
 struct FieldDef {
     const char* key = "";          ///< 协议寻址词汇（跨 DLL 字符串；
                                    ///<  持久化/暴露面/Store 寻址同词汇）
-    const char* label = "";        ///< 显示名（中文，如"位置"）
+    const char* label = "";        ///< 显示名（中文源文，经
+                                   ///  QT_TRANSLATE_NOOP("ClipSchema",...) 可提取译；
+                                   ///  显示点须包 translate("ClipSchema", ...)）
     FieldType   type = FieldType::Double;
     int         components = 1;    ///< Double 向量维度 1..3（数据通道
                                    ///<  维度——UI 分量数可少于此，如
@@ -141,53 +144,53 @@ struct FieldDef {
 // ---------------------------------------------------------------------------
 inline constexpr FieldDef kTweenSchema[15] = {
     // 变换组（组 0）
-    {"position",   "位置",     FieldType::Double, 3, {"X", "Y", "Z"},
+    {"position",   QT_TRANSLATE_NOOP("ClipSchema", "位置"),     FieldType::Double, 3, {"X", "Y", "Z"},
      -100000.0, 100000.0, 10.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupXform, "tween"},
-    {"size",       "尺寸",     FieldType::Double, 2, {"W", "H", ""},
+    {"size",       QT_TRANSLATE_NOOP("ClipSchema", "尺寸"),     FieldType::Double, 2, {"W", "H", ""},
      0.0, 100000.0, 10.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupXform, "tween"},
     // 姿态组（组 1）
-    {"rotation",   "旋转",     FieldType::Double, 3, {"X", "Y", "Z"},
+    {"rotation",   QT_TRANSLATE_NOOP("ClipSchema", "旋转"),     FieldType::Double, 3, {"X", "Y", "Z"},
      -3600.0, 3600.0, 5.0, 2, "°", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupPose, "tween"},
     // 裁切组（组 2）
-    {"crop_top",    "裁切 上", FieldType::Double, 1, {"", "", ""},
+    {"crop_top",    QT_TRANSLATE_NOOP("ClipSchema", "裁切 上"), FieldType::Double, 1, {"", "", ""},
      0.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCrop, "tween"},
-    {"crop_bottom", "裁切 下", FieldType::Double, 1, {"", "", ""},
+    {"crop_bottom", QT_TRANSLATE_NOOP("ClipSchema", "裁切 下"), FieldType::Double, 1, {"", "", ""},
      0.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCrop, "tween"},
-    {"crop_left",   "裁切 左", FieldType::Double, 1, {"", "", ""},
+    {"crop_left",   QT_TRANSLATE_NOOP("ClipSchema", "裁切 左"), FieldType::Double, 1, {"", "", ""},
      0.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCrop, "tween"},
-    {"crop_right",  "裁切 右", FieldType::Double, 1, {"", "", ""},
+    {"crop_right",  QT_TRANSLATE_NOOP("ClipSchema", "裁切 右"), FieldType::Double, 1, {"", "", ""},
      0.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCrop, "tween"},
     // 形变组（组 3）
-    {"corner_lt",   "角点 LT", FieldType::Double, 2, {"X", "Y", ""},
+    {"corner_lt",   QT_TRANSLATE_NOOP("ClipSchema", "角点 LT"), FieldType::Double, 2, {"X", "Y", ""},
      -100000.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCorner, "tween"},
-    {"corner_rt",   "角点 RT", FieldType::Double, 2, {"X", "Y", ""},
+    {"corner_rt",   QT_TRANSLATE_NOOP("ClipSchema", "角点 RT"), FieldType::Double, 2, {"X", "Y", ""},
      -100000.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCorner, "tween"},
-    {"corner_rb",   "角点 RB", FieldType::Double, 2, {"X", "Y", ""},
+    {"corner_rb",   QT_TRANSLATE_NOOP("ClipSchema", "角点 RB"), FieldType::Double, 2, {"X", "Y", ""},
      -100000.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCorner, "tween"},
-    {"corner_lb",   "角点 LB", FieldType::Double, 2, {"X", "Y", ""},
+    {"corner_lb",   QT_TRANSLATE_NOOP("ClipSchema", "角点 LB"), FieldType::Double, 2, {"X", "Y", ""},
      -100000.0, 100000.0, 1.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
      kFieldGroupCorner, "tween"},
     // 合成组（组 4）
-    {"opacity",     "不透明度", FieldType::Double, 1, {"", "", ""},
+    {"opacity",     QT_TRANSLATE_NOOP("ClipSchema", "不透明度"), FieldType::Double, 1, {"", "", ""},
      0.0, 1.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
      kFieldGroupComp, "tween"},
-    {"audio_gain",  "音频增益", FieldType::Double, 1, {"", "", ""},
+    {"audio_gain",  QT_TRANSLATE_NOOP("ClipSchema", "音频增益"), FieldType::Double, 1, {"", "", ""},
      0.0, 2.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
      kFieldGroupComp, "tween"},
-    {"rgb_gain",    "RGB 增益", FieldType::Double, 3, {"R", "G", "B"},
+    {"rgb_gain",    QT_TRANSLATE_NOOP("ClipSchema", "RGB 增益"), FieldType::Double, 3, {"R", "G", "B"},
      0.0, 2.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
      kFieldGroupComp, "tween"},
-    {"gamma",       "Gamma",   FieldType::Double, 1, {"", "", ""},
+    {"gamma",       QT_TRANSLATE_NOOP("ClipSchema", "Gamma"),   FieldType::Double, 1, {"", "", ""},
      0.1, 4.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
      kFieldGroupComp, "tween"},
 };

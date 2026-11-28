@@ -17,6 +17,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <QCoreApplication>
 #endif
 
 namespace Nodes
@@ -46,12 +47,12 @@ namespace Nodes
             : QFrame(parent)
         {
             activeCheck->setChecked(true);
-            activeCheck->setText(QStringLiteral("Active"));
-            activeCheck->setToolTip(QStringLiteral("开启后监视鼠标"));
+            activeCheck->setText(QCoreApplication::translate("Nodes::MouseInInterface", "激活"));
+            activeCheck->setToolTip(QCoreApplication::translate("Nodes::MouseInInterface", "开启后监视鼠标"));
 
-            coordCombo->addItem(QStringLiteral("Absolute"), Absolute);
-            coordCombo->addItem(QStringLiteral("Normalized"), Normalized);
-            coordCombo->setToolTip(QStringLiteral("坐标：像素 / 主屏归一化 0–1"));
+            coordCombo->addItem(QCoreApplication::translate("Nodes::MouseInInterface", "绝对"), Absolute);
+            coordCombo->addItem(QCoreApplication::translate("Nodes::MouseInInterface", "归一化"), Normalized);
+            coordCombo->setToolTip(QCoreApplication::translate("Nodes::MouseInInterface", "坐标：像素 / 主屏归一化 0–1"));
 
             setupValueWidget(txSpin, 2);
             setupValueWidget(tySpin, 2);
@@ -67,7 +68,7 @@ namespace Nodes
             addValueRow(row++, QStringLiteral("right"), rightSpin);
 
             main_layout->addWidget(activeCheck, row++, 0, 1, 2);
-            main_layout->addWidget(new QLabel(QStringLiteral("Coord"), this), row, 0);
+            main_layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::MouseInInterface", "坐标"), this), row, 0);
             main_layout->addWidget(coordCombo, row, 1);
 
             main_layout->setContentsMargins(4, 2, 4, 4);

@@ -31,7 +31,7 @@ namespace Nodes {
 
     public:
 
-        TogglePluginDataModel(): button(new QPushButton("Toggle")){
+        TogglePluginDataModel(): button(new QPushButton(QCoreApplication::translate("Nodes::TogglePluginDataModel", "开关"))){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;

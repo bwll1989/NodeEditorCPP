@@ -98,7 +98,7 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(4);
 
-    auto* box = new QGroupBox(QStringLiteral("实况源"), this);
+    auto* box = new QGroupBox(tr("实况源"), this);
     auto* lay = new QVBoxLayout(box);
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
@@ -108,10 +108,10 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     // 转发拆装）、LiveMediaSource::prepare（收流装配）、MediaScheduler
     // 指纹（启停即失效重建）。启用中锁定源编辑控件——运行中切源会析构
     // 重建连接中的源实例（接收/渲染线程竞态偶发崩溃）。
-    enable_ = new QPushButton(QStringLiteral("启用"), box);
+    enable_ = new QPushButton(tr("启用"), box);
     enable_->setObjectName("liveEnable"); // 测试定位锚
     enable_->setCheckable(true);
-    enable_->setToolTip(QStringLiteral(
+    enable_->setToolTip(tr(
         "启用：开始采集并组播下发（display 端有画面），同时锁定源选择。\n"
         "停止：结束采集与下发（display 占位），解锁后可切换源。"));
     lay->addWidget(enable_);
@@ -151,9 +151,9 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
         source_->setCurrentIndex(0);
     }
     src_row->addWidget(source_, /*stretch=*/1);
-    refresh_ = new QPushButton(QStringLiteral("刷新"), box);
+    refresh_ = new QPushButton(tr("刷新"), box);
     refresh_->setObjectName("liveRefresh");
-    refresh_->setToolTip(QStringLiteral("重新枚举当前接入方式的源列表（过滤本机再发布流）"));
+    refresh_->setToolTip(tr("重新枚举当前接入方式的源列表（过滤本机再发布流）"));
     src_row->addWidget(refresh_);
     lay->addLayout(src_row);
 
@@ -161,11 +161,11 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     // 【2026-11-23 必须同步】仅同步档位（监视档退役）；延迟模式下拉同日
     // 退役——恒同步语义，不再暴露选项。
     auto* sync_row = new QHBoxLayout();
-    auto* sync_label = new QLabel(QStringLiteral("帧同步"), box);
+    auto* sync_label = new QLabel(tr("帧同步"), box);
     sync_row->addWidget(sync_label);
     sync_latency_ = new QComboBox(box);
     sync_latency_->setObjectName("liveSyncLatency");
-    sync_latency_->setToolTip(QStringLiteral(
+    sync_latency_->setToolTip(tr(
         "按帧接收时间戳 + 本延迟排程显示：多台 display 选同一档即可跨机帧"
         "同步。建议 80~200ms。"));
     for (const auto& p : kSyncLatencyPresets)
@@ -185,14 +185,14 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     // 首项「自动（推荐）」data="" = 不写 live_bind_ip，回落裁决链自动
     // 裁决（对端同网段 → 自动探测）。数据源 listLanIfcs() 与探测同源。
     auto* bind_row = new QHBoxLayout();
-    auto* bind_label = new QLabel(QStringLiteral("发送网卡"), box);
+    auto* bind_label = new QLabel(tr("发送网卡"), box);
     bind_row->addWidget(bind_label);
     bind_ip_ = new QComboBox(box);
     bind_ip_->setObjectName("liveBindIp"); // 测试定位锚
-    bind_ip_->setToolTip(QStringLiteral(
+    bind_ip_->setToolTip(tr(
         "组播流从哪块网卡发出。默认自动探测（单网卡机器无需改动）；\n"
         "多网卡机器若 display 端收不到流，在此指定与 display 同网段的网卡。"));
-    bind_ip_->addItem(QStringLiteral("自动（推荐）"), QString());
+    bind_ip_->addItem(tr("自动（推荐）"), QString());
     for (const auto& ifc : listLanIfcs()) {
         bind_ip_->addItem(QString::fromUtf8(ifc.name) +
                               QStringLiteral(" (") +
@@ -270,7 +270,7 @@ void LiveClipSection::syncEnableUi() {
     }
     // 两态按钮：未启用「启用」（默认态）；启用后「停止」（绿底——
     // 运行中，按下面板即停止采集下发并解锁）
-    enable_->setText(on ? QStringLiteral("停止") : QStringLiteral("启用"));
+    enable_->setText(on ? tr("停止") : tr("启用"));
     enable_->setStyleSheet(on
         ? QStringLiteral("QPushButton { background-color: #2E7D32;"
                          " color: white; font-weight: bold; }")
@@ -389,7 +389,7 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     }
     // 组播地址恒展示（恒启用语义；applyTo 恒生成——此处按资产实际值显示，
     // 存量空值等下次 applyTo/下发归一化）
-    mcast_url_->setText(QStringLiteral("组播地址: ") +
+    mcast_url_->setText(tr("组播地址: ") +
                         QString::fromStdString(a.live_url));
 }
 

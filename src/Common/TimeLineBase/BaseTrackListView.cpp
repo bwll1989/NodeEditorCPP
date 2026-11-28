@@ -39,7 +39,7 @@ BaseTracklistView::BaseTracklistView(BaseTimeLineModel *viemModel, QWidget *pare
     setDropIndicatorShown(true);
 
     // Create delete track action
-    m_deleteTrackAction = new QAction("Delete track", this);
+    m_deleteTrackAction = new QAction(tr("删除轨道"), this);
     m_deleteTrackAction->setIcon(QIcon(":/icons/icons/trash.png"));
     m_deleteTrackAction->setShortcut(QKeySequence(Qt::Key_Delete));
     QObject::connect(m_deleteTrackAction, &QAction::triggered, this, &BaseTracklistView::onDeleteTrack);
@@ -138,7 +138,7 @@ void BaseTracklistView::contextMenuEvent(QContextMenuEvent* event) {
         // Add track creation action.【2026-11-15 轨道去类型化】轨道不再
         // 按类型分类——单项 "Add Track" 创建无类型轨道（onAddTrack 空串），
         // 片段类型在 Add Item 时显式选择；不再遍历插件类型表生成子菜单。
-        QAction* addTrackAction = contextMenu.addAction("Add Track");
+        QAction* addTrackAction = contextMenu.addAction(tr("添加轨道"));
         addTrackAction->setIcon(QIcon(":/icons/icons/add.png"));
         connect(addTrackAction, &QAction::triggered, [this]() {
             Model->onAddTrack(QString());

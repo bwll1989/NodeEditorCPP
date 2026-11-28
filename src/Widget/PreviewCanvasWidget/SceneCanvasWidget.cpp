@@ -472,7 +472,7 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
         for (const auto& id : cur_conn)
             if (!last_connected_.count(id)) { newcomer = true; break; }
         if (newcomer && scene_ && adapter_ && adapter_->publishScene())
-            statusTip("显示端上线，场景已自动追平下发");
+            statusTip(tr("显示端上线，场景已自动追平下发"));
         last_connected_ = std::move(cur_conn);
     });
     ui_timer_->start(200);
@@ -792,25 +792,25 @@ void SceneCanvasWidget::refreshViews() {
 void SceneCanvasWidget::publishScene() {
     // 复合操作（兜底同步 → 音频快照 → 广播）已封装进适配器（模型对外接口）
     if (!adapter_ || !adapter_->publishScene()) {
-        statusTip("下发场景：下发运行时未启动，忽略");
+        statusTip(tr("下发场景：下发运行时未启动，忽略"));
         return;
     }
-    statusTip("场景已全量下发到显示端");
+    statusTip(tr("场景已全量下发到显示端"));
 }
 
 void SceneCanvasWidget::syncMedia() {
     if (!scene_ || !adapter_) return;
     const auto res = adapter_->syncMedia();
     if (!res.ok) {
-        statusTip("同步媒体：下发运行时未启动（端口占用？）——素材无法分发");
+        statusTip(tr("同步媒体：下发运行时未启动（端口占用？）——素材无法分发"));
         return;
     }
-    statusTip(QStringLiteral("同步媒体：注册 %1 个素材 / 在线显示端 %2 个%3")
+    statusTip(tr("同步媒体：注册 %1 个素材 / 在线显示端 %2 个%3")
                   .arg(static_cast<int>(res.registered))
                   .arg(static_cast<int>(res.online))
                   .arg(res.online == 0
-                           ? QStringLiteral("——清单未送达（显示端上线后请再次"
-                                            "同步）")
+                           ? tr("——清单未送达（显示端上线后请再次"
+                                "同步）")
                            : QStringLiteral("")));
 }
 
@@ -850,23 +850,23 @@ QString SceneCanvasWidget::displayInfoLine(const std::string& player_id) const {
     // 在线圆点语义：在线绿 / 离线灰 / 未登记橙 / 运行时未启动暗灰。
     const QString pid = QString::fromStdString(player_id);
     if (pid.isEmpty())
-        return QStringLiteral("<span style='color:#888'>未绑定显示端"
-                              "</span>");
+        return tr("<span style='color:#888'>未绑定显示端"
+                  "</span>");
     if (!runtime_ || !runtime_->running())
-        return QStringLiteral("<b>%1</b> · <span style='color:#666'>"
-                              "运行时未启动</span>").arg(pid);
+        return tr("<b>%1</b> · <span style='color:#666'>"
+                  "运行时未启动</span>").arg(pid);
     const auto rows = runtime_->displayRows();
     for (const auto& r : rows) {
         if (r.id != pid) continue;
         const QString addr = QStringLiteral("%1:%2").arg(r.host).arg(r.port);
         if (r.connected)
-            return QStringLiteral("<b>%1</b> · <span style='color:#2EAD5A'>"
-                                  "在线</span> · %2").arg(pid, addr);
-        return QStringLiteral("<b>%1</b> · <span style='color:#999'>"
-                              "离线</span> · %2").arg(pid, addr);
+            return tr("<b>%1</b> · <span style='color:#2EAD5A'>"
+                      "在线</span> · %2").arg(pid, addr);
+        return tr("<b>%1</b> · <span style='color:#999'>"
+                  "离线</span> · %2").arg(pid, addr);
     }
-    return QStringLiteral("<b>%1</b> · <span style='color:#C77B3C'>"
-                          "未登记</span>（按绑定页 host:port 填写后 OK 登记）")
+    return tr("<b>%1</b> · <span style='color:#C77B3C'>"
+              "未登记</span>（按绑定页 host:port 填写后 OK 登记）")
         .arg(pid);
 }
 
@@ -1014,14 +1014,14 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                     // display 在注册时由 EditorRuntime::handleRegister 自动
                     // 补发。手动路径仍保留（画布银幕右键「下发场景」）。
                     publishScene();
-                    statusTip(QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4）；"
-                                             "场景已自动下发")
+                    statusTip(tr("屏幕 %1 已修改（绑定 %2@%3:%4）；"
+                                 "场景已自动下发")
                                   .arg(QString::fromStdString(scr2.id),
                                        QString::fromStdString(new_pid),
                                        QString::fromStdString(new_host))
                                   .arg(new_port));
                 } else {
-                    statusTip(QStringLiteral(
+                    statusTip(tr(
                                   "屏幕 %1 已修改（绑定 %2@%3:%4；运行时未运行，"
                                   "启动后经画布银幕右键「下发场景」生效）")
                                   .arg(QString::fromStdString(scr2.id),
@@ -2183,7 +2183,7 @@ void SceneCanvasWidget::paintGL() {
     if (!scene_) {
         p.setPen(QColor(0x90, 0x90, 0x90));
         p.drawText(rect(), Qt::AlignCenter,
-                   "无场景（加载 .scene 文件后显示预览）");
+                   tr("无场景（加载 .scene 文件后显示预览）"));
         return;
     }
 
@@ -2420,7 +2420,7 @@ void SceneCanvasWidget::paintGL3D(
     if (!scene_) {
         p.setPen(QColor(0x90, 0x90, 0x90));
         p.drawText(rect(), Qt::AlignCenter,
-                   "无场景（加载 .scene 文件后显示预览）");
+                   tr("无场景（加载 .scene 文件后显示预览）"));
         return;
     }
 
@@ -3010,9 +3010,9 @@ void SceneCanvasWidget::paintGL3D(
         f.setPointSize(9);
         p.setFont(f);
         const QString label =
-            QString("%1 → %2")
+            tr("%1 → %2")
                 .arg(QString::fromStdString(s.id),
-                     s.player_id.empty() ? QString("(未绑定)")
+                     s.player_id.empty() ? tr("(未绑定)")
                                          : QString::fromStdString(s.player_id));
         p.drawText(QRectF(sq.second[0].x() + lx, sq.second[0].y() + 3,
                           220, 16),
@@ -3127,7 +3127,7 @@ void SceneCanvasWidget::paintGL3D(
         p.setFont(f);
     }
     p.drawText(QRectF(8, 6, width() - 16, 16), Qt::AlignLeft | Qt::AlignTop,
-               "滚轮缩放 · 左键空白/中键平移 · 双击空白复位");
+               tr("滚轮缩放 · 左键空白/中键平移 · 双击空白复位"));
 }
 
 // ---------------------------------------------------------------------------
@@ -3291,9 +3291,9 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
         label_left = 17; // 让位圆点（9px 圆心 + 3px 半径 + 余量）
     }
     const QString label =
-        QString("%1 → %2")
+        tr("%1 → %2")
             .arg(QString::fromStdString(s.id),
-                 s.player_id.empty() ? QString("(未绑定)")
+                 s.player_id.empty() ? tr("(未绑定)")
                                      : QString::fromStdString(s.player_id));
     // 【2026-11-25 选中指示】选中屏标签红底白字——多屏重叠时与选中框
     // 加粗、选中屏压顶重绘三重确认"选中了谁"
@@ -3584,7 +3584,7 @@ void SceneCanvasWidget::drawCenterName(QPainter& p, const QRectF& box,
     cf.setBold(true);
     const QFontMetrics cfm(cf);
     const QString name = cfm.elidedText(
-        player_id.empty() ? QString("(未绑定)")
+        player_id.empty() ? tr("(未绑定)")
                           : QString::fromStdString(player_id),
         Qt::ElideMiddle,
         qMax(0, static_cast<int>(box.width()) - 12));
@@ -3657,9 +3657,9 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             dragging_vp_ = true;
             moved_       = false;
             setCursor(Qt::ClosedHandCursor);
-            statusTip(vaxis == 2 ? "沿蓝 Z 轴拖动 Eye 高度（焦距 F）"
-                     : vaxis == 0 ? "沿红 X 轴拖动全局消隐点（VP）"
-                                  : "沿绿 Y 轴拖动全局消隐点（VP）");
+            statusTip(vaxis == 2 ? tr("沿蓝 Z 轴拖动 Eye 高度（焦距 F）")
+                     : vaxis == 0 ? tr("沿红 X 轴拖动全局消隐点（VP）")
+                                  : tr("沿绿 Y 轴拖动全局消隐点（VP）"));
             update();
             ev->accept();
             return;
@@ -3675,7 +3675,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             vp_drag_axis_ = -1; // 中心圈/Eye 自由拖
             moved_       = false;
             setCursor(Qt::ClosedHandCursor);
-            statusTip("已选中 VP（拖动自由移动；Shift 吸附 10px）");
+            statusTip(tr("已选中 VP（拖动自由移动；Shift 吸附 10px）"));
             ev->accept();
             return;
         }
@@ -3714,9 +3714,9 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             guide_y_.clear();
             guide_pt_valid_ = false;
             setCursor(Qt::ClosedHandCursor);
-            statusTip(axis == 2 ? "沿高度轴（蓝 Z）拖动 pos_z"
-                     : axis == 0 ? "沿红 X 轴拖动画布 X"
-                                 : "沿绿 Y 轴拖动画布 Y");
+            statusTip(axis == 2 ? tr("沿高度轴（蓝 Z）拖动 pos_z")
+                     : axis == 0 ? tr("沿红 X 轴拖动画布 X")
+                                 : tr("沿绿 Y 轴拖动画布 Y"));
             update();
             ev->accept();
             return;
@@ -3743,7 +3743,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         drag_start_canvas_ = canvasFromScreen(wp);
         moved_ = false;
         update();
-        statusTip("拖动旋转（Shift 吸附 15°）");
+        statusTip(tr("拖动旋转（Shift 吸附 15°）"));
         return;
     }
 
@@ -3818,8 +3818,8 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
                 guide_pt_valid_ = false;
                 update();
                 statusTip(chit >= 0
-                              ? "拖动角点位移（与属性面板「形变」联动）"
-                              : "拖动边线调整大小（对边固定，与属性面板尺寸/位置联动）");
+                              ? tr("拖动角点位移（与属性面板「形变」联动）")
+                              : tr("拖动边线调整大小（对边固定，与属性面板尺寸/位置联动）"));
                 ev->accept();
                 return;
             }
@@ -3843,7 +3843,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         drag_start_canvas_ = canvasFromScreen(wp);
         moved_ = false; // 新会话：位移标志复位
         update();
-        statusTip("拖动角点调整大小（对角固定）");
+        statusTip(tr("拖动角点调整大小（对角固定）"));
         return;
     }
 
@@ -3878,7 +3878,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             pan_start_view_ = view_pan_;
         setCursor(Qt::ClosedHandCursor);
         update();
-        statusTip("拖动平移视图（左键空白/中键；双击空白复位）");
+        statusTip(tr("拖动平移视图（左键空白/中键；双击空白复位）"));
         return;
     }
     // 记录拖动基准（画布坐标 + 对象原始 x/y）。3D：反投影平面 = 被拖
@@ -3893,7 +3893,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         const Screen& s = scene_->screens[sel_.a];
         drag_orig_x_ = s.x;
         drag_orig_y_ = s.y;
-        statusTip(QString("已选中屏幕 %1（拖动改位置）")
+        statusTip(tr("已选中屏幕 %1（拖动改位置）")
                                .arg(QString::fromStdString(s.id)));
     } else {
         const auto& c =
@@ -3905,7 +3905,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         drag_orig_x_ = rt.x;
         drag_orig_y_ = rt.y;
         // 2D 化（2026-11-20）：位置提示不再带 Z（深度 Z 已屏蔽显示）
-        statusTip(QString("已选中片段 %1（拖动改画布位置）")
+        statusTip(tr("已选中片段 %1（拖动改画布位置）")
                       .arg(QString::fromStdString(c.id)));
     }
 }
@@ -4312,8 +4312,8 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
     //      原空白双击走 QWidget 默认（无副作用），行为叠加安全）----
     if (!viewIsHome()) {
         resetView();
-        statusTip(view3d_ ? "视图已复位（缺省视角，画布居中）"
-                                   : "视图已复位（100%，适配窗口）");
+        statusTip(view3d_ ? tr("视图已复位（缺省视角，画布居中）")
+                                   : tr("视图已复位（100%，适配窗口）"));
         return;
     }
     QWidget::mouseDoubleClickEvent(ev);
@@ -4335,10 +4335,10 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     if (hit.kind == 1) {
         // 【2026-11-15 三次定稿】菜单序=场景动作置顶（高频优先）→ 银幕操作
         // → 删除屏幕殿后（危险操作惯例）。
-        QAction* act_pub  = menu.addAction("下发场景");
-        QAction* act_sync = menu.addAction("同步媒体");
+        QAction* act_pub  = menu.addAction(tr("下发场景"));
+        QAction* act_sync = menu.addAction(tr("同步媒体"));
         menu.addSeparator();
-        QAction* act_prop = menu.addAction("屏幕属性…");
+        QAction* act_prop = menu.addAction(tr("屏幕属性…"));
         // 断开/连接显示端：画布内直接执行（setDisplayConnect）——停用立即
         // 断开，启用交看门狗重连。状态口径 = display_online_（宿主 200ms
         // 拍推送 connected&&enabled）。
@@ -4352,7 +4352,7 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
                 online = it != display_online_.end() && it->second;
             }
         }
-        QAction* act_conn = menu.addAction(online ? "断开显示端" : "连接显示端");
+        QAction* act_conn = menu.addAction(online ? tr("断开显示端") : tr("连接显示端"));
         act_conn->setEnabled(has_display); // 未绑定显示端无动作可做
         // 黑屏切换（2026-11-25）：单 display 正常显示/黑屏——MsgDisplayBlack
         // 单播直达该端（运行时指令不入场景、不随下发广播）；态镜像在
@@ -4362,10 +4362,10 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         if (has_display && runtime_)
             black = runtime_->displayBlack(QString::fromStdString(
                 scene_->screens[hit.a].player_id));
-        QAction* act_black = menu.addAction(black ? "取消黑屏" : "黑屏");
+        QAction* act_black = menu.addAction(black ? tr("取消黑屏") : tr("黑屏"));
         act_black->setEnabled(has_display && online);
         menu.addSeparator();
-        QAction* act_del = menu.addAction("删除屏幕");
+        QAction* act_del = menu.addAction(tr("删除屏幕"));
         QAction* chosen = menu.exec(ev->globalPos());
         if (!chosen) return;
         // 右键菜单动作直接同步分发（kSticky hit=延续当前选中或视觉最上
@@ -4382,9 +4382,9 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
             // 同函数其他 runtime_ 消费点均有守卫，此处补齐同口径
             if (runtime_)
                 runtime_->setDisplayBlack(QString::fromStdString(pid), !black);
-            statusTip(QString("%1 %2")
+            statusTip(tr("%1 %2")
                           .arg(QString::fromStdString(pid),
-                               !black ? "已切黑屏" : "已恢复显示"));
+                               !black ? tr("已切黑屏") : tr("已恢复显示")));
         } else if (chosen == act_del) {
             deleteScreen(hit.a);
         } else if (chosen == act_pub) {
@@ -4402,9 +4402,9 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     // 旧 2D 行为，需要斜装/立面直接在属性对话框调俯仰/偏航（±85°）。
     // 不另立 3D 类型：真投影仪映射（Eye/Target/Lens Shift）作为 Screen
     // 字段扩展在统一模型上做，维护两套类型是历史包袱无谓继承。
-    QAction* act_add = menu.addAction("添加屏幕");
+    QAction* act_add = menu.addAction(tr("添加屏幕"));
     // 吸附对齐开关（拖动时贴齐其他图元的边缘/中心；默认开启）
-    QAction* act_snap = menu.addAction("吸附对齐（边缘/中心）");
+    QAction* act_snap = menu.addAction(tr("吸附对齐（边缘/中心）"));
     act_snap->setCheckable(true);
     act_snap->setChecked(snapping_);
     // 【全局透视（Eye 点）入口已退役 2026-11-20 —— 2D 化】视角锁定正俯视、
@@ -4416,18 +4416,18 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     // 视图已缩放/平移/旋转时提供复位入口（与双击空白同效；可发现性）
     QAction* act_reset = nullptr;
     if (!viewIsHome())
-        act_reset = menu.addAction(view3d_ ? "重置视图（缺省视角）"
-                                           : "重置视图（100%）");
+        act_reset = menu.addAction(view3d_ ? tr("重置视图（缺省视角）")
+                                           : tr("重置视图（100%）"));
     QAction* chosen = menu.exec(ev->globalPos());
     if (chosen == act_add) addScreen();
     else if (chosen == act_snap) {
         snapping_ = act_snap->isChecked();
-        statusTip(snapping_ ? "吸附对齐已开启" : "吸附对齐已关闭");
+        statusTip(snapping_ ? tr("吸附对齐已开启") : tr("吸附对齐已关闭"));
     }
     else if (chosen == act_reset) {
         resetView();
-        statusTip(view3d_ ? "视图已复位（缺省视角，画布居中）"
-                                   : "视图已复位（100%，适配窗口）");
+        statusTip(view3d_ ? tr("视图已复位（缺省视角，画布居中）")
+                                   : tr("视图已复位（100%，适配窗口）"));
     }
 }
 
@@ -4486,7 +4486,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
         panAnchorTo(ev->position(), anchor); // 光标下地面点保持不动
         update();
         statusTip(
-            QString("视图 %1%（滚轮缩放 · 左键空白/中键平移 · 双击空白复位）")
+            tr("视图 %1%（滚轮缩放 · 左键空白/中键平移 · 双击空白复位）")
                 .arg((int)std::lround(view3d_zoom_ * 100.0)));
         return;
     }
@@ -4509,7 +4509,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
     view_pan_.setY(ev->position().y() - cp.y() * k -
                    (height() - scene_->canvas_h * k) / 2.0);
     update();
-    statusTip(QString("视图 %1%（滚轮缩放 · 左键空白/中键拖拽平移 · "
+    statusTip(tr("视图 %1%（滚轮缩放 · 左键空白/中键拖拽平移 · "
                                "双击空白/「适应窗口」复位）")
                            .arg((int)std::lround(view_zoom_ * 100.0)));
 }
@@ -4580,9 +4580,9 @@ void SceneCanvasWidget::keyPressEvent(QKeyEvent* ev) {
     emit sceneEdited(); // 与鼠标拖动同链路（置脏 + 50ms 防抖自动下发）
     // 撤销收编（离散一步式；自动重复经合并窗口折叠——长按方向键为一条）
     if (hist_) hist_->checkpoint("方向键微调", *scene_);
-    statusTip(QString("%1：%2 %3%4（Shift 大步进 · Alt 切移动）")
-                           .arg(sel_.kind == 1 ? "屏幕" : "片段",
-                                move_mode ? "移动" : "大小")
+    statusTip(tr("%1：%2 %3%4（Shift 大步进 · Alt 切移动）")
+                           .arg(sel_.kind == 1 ? tr("屏幕") : tr("片段"),
+                                move_mode ? tr("移动") : tr("大小"))
                            .arg(dx != 0 ? (dx > 0 ? "→" : "←")
                                         : (dy > 0 ? "↓" : "↑"))
                            .arg(QString::number(step, 'f', 0)));

@@ -13,6 +13,7 @@
 #include <QSpinBox>
 #include <QVariantMap>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 namespace Nodes
 {
     class OscInInterface: public QWidget{
@@ -51,9 +52,9 @@ namespace Nodes
         QLineEdit *valueEdit=new QLineEdit();
         QLineEdit *addressEdit=new QLineEdit();
     private:
-        QLabel *portLabel=new QLabel("port: ");
-        QLabel *valueLabel=new QLabel("value: ");
-        QLabel *addressLabel=new QLabel("address: ");
+        QLabel *portLabel=new QLabel(QCoreApplication::translate("Nodes::OscInInterface", "端口："));
+        QLabel *valueLabel=new QLabel(QCoreApplication::translate("Nodes::OscInInterface", "值："));
+        QLabel *addressLabel=new QLabel(QCoreApplication::translate("Nodes::OscInInterface", "地址："));
 
 
     };

@@ -5,6 +5,7 @@
 #include <QFileDialog>
 
 #include "Common/AppConfig/ConfigManager.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -12,7 +13,7 @@ inline QString pickOutputDirectory(const QString& currentDir)
 {
     return QFileDialog::getExistingDirectory(
         QApplication::activeWindow(),
-        QStringLiteral("选择输出文件夹"),
+        QCoreApplication::translate("Nodes::ToFilePath", "选择输出文件夹"),
         currentDir);
 }
 

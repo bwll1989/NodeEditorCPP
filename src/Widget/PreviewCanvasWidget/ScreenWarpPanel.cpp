@@ -232,30 +232,30 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     if (!seed.active()) seed = ScreenWarp::identity(4, 4);
     seed.normalize();
 
-    auto* form_box = new QGroupBox("变形模式", this);
+    auto* form_box = new QGroupBox(tr("变形模式"), this);
     auto* form     = new QFormLayout(form_box);
 
     mode_ = new QComboBox(form_box);
     mode_->setObjectName("warp_mode");
-    mode_->addItem("无变形（直出）");
-    mode_->addItem("手动网格（拖拽控制点）");
+    mode_->addItem(tr("无变形（直出）"));
+    mode_->addItem(tr("手动网格（拖拽控制点）"));
     mode_->setCurrentIndex(seed_mode);
 
     cols_ = new IntDragValueWidget(form_box);
     cols_->setObjectName("warp_cols");
     cols_->setRange(2, 16);
     cols_->setValue(seed.cols);
-    cols_->setToolTip("网格列数（控制点列数）；变更时按曲面保形重采样");
+    cols_->setToolTip(tr("网格列数（控制点列数）；变更时按曲面保形重采样"));
 
     rows_ = new IntDragValueWidget(form_box);
     rows_->setObjectName("warp_rows");
     rows_->setRange(2, 16);
     rows_->setValue(seed.rows);
-    rows_->setToolTip("网格行数（控制点行数）；变更时按曲面保形重采样");
+    rows_->setToolTip(tr("网格行数（控制点行数）；变更时按曲面保形重采样"));
 
-    reset_btn_ = new QPushButton("重置为恒等网格", form_box);
+    reset_btn_ = new QPushButton(tr("重置为恒等网格"), form_box);
     reset_btn_->setObjectName("warp_reset");
-    reset_btn_->setToolTip("全部控制点回位（取消变形，网格形状不变）");
+    reset_btn_->setToolTip(tr("全部控制点回位（取消变形，网格形状不变）"));
 
     auto* dens_row = new QHBoxLayout;
     dens_row->addWidget(cols_);
@@ -264,8 +264,8 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     dens_row->addStretch(1);
     dens_row->addWidget(reset_btn_);
 
-    form->addRow("模式：", mode_);
-    form->addRow("网格密度：", dens_row);
+    form->addRow(tr("模式："), mode_);
+    form->addRow(tr("网格密度："), dens_row);
 
     // ---- 编辑区 ------------------------------------------------------------
     edit_ = new WarpEditArea(this);

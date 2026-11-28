@@ -204,7 +204,7 @@ QString categoryDisplayLabel(MediaLibrary::Category cat)
     case MediaLibrary::Category::Document:  return QObject::tr("文档");
     case MediaLibrary::Category::Vioso:     return QStringLiteral("Vioso");
     case MediaLibrary::Category::ISF:       return QStringLiteral("ISF");
-    case MediaLibrary::Category::ChildFlow: return QObject::tr("Child Flow");
+    case MediaLibrary::Category::ChildFlow: return QObject::tr("子流程");
     case MediaLibrary::Category::Mpcdi:     return QStringLiteral("MPCDI");
     case MediaLibrary::Category::Fixture:   return QStringLiteral("Fixture/GDTF");
     case MediaLibrary::Category::Game:      return QObject::tr("游戏 ROM");

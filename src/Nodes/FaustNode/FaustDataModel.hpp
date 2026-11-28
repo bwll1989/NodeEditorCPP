@@ -35,6 +35,7 @@
 #include "MediaLibrary/MediaLibrary.h"
 
 #include <QtCore/QByteArray>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -104,7 +105,7 @@ public:
                     if (name.isEmpty() || name == m_fileName) return;
                     const QString abs = resolveMediaFilePath(name);
                     if (abs.isEmpty()) {
-                        setStatus(QStringLiteral("媒体库中找不到: %1").arg(name), true);
+                        setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "媒体库中找不到: %1").arg(name), true);
                         qWarning() << "[FaustNode] media file not found:" << name;
                         return;
                     }
@@ -263,7 +264,7 @@ public slots:
         if (m_destructing || path.isEmpty()) return false;
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            setStatus(QStringLiteral("无法打开: %1").arg(path), true);
+            setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "无法打开: %1").arg(path), true);
             qWarning() << "FaustNode: cannot open" << path;
             return false;
         }
@@ -339,13 +340,13 @@ private:
         // 通用媒体选择控件：候选来自媒体库 Faust 分类，右侧 ⋯ 展开候选列表。
         // 素材导入统一在媒体库面板完成（本项目 2026-11-12 用户定案）。
         m_fileSelector = new SelectorComboBox(MediaLibrary::Category::Faust, fileRow);
-        m_fileSelector->setPlaceholderText(QStringLiteral("从媒体库选择 .dsp"));
-        m_fileSelector->setToolTip(QStringLiteral(".dsp 文件在媒体库 Faust DSP 分类中导入"));
+        m_fileSelector->setPlaceholderText(QCoreApplication::translate("Nodes::FaustDataModel", "从媒体库选择 .dsp"));
+        m_fileSelector->setToolTip(QCoreApplication::translate("Nodes::FaustDataModel", ".dsp 文件在媒体库 Faust DSP 分类中导入"));
 
         m_reloadButton = new QPushButton(fileRow);
         m_reloadButton->setIcon(QIcon(QStringLiteral(":/icons/icons/reload.png")));
         m_reloadButton->setIconSize(QSize(18, 18));
-        m_reloadButton->setToolTip(QStringLiteral("重新编译（重置参数）"));
+        m_reloadButton->setToolTip(QCoreApplication::translate("Nodes::FaustDataModel", "重新编译（重置参数）"));
         m_reloadButton->setMaximumWidth(28);
 
         fileLayout->addWidget(m_fileSelector, 1);
@@ -359,7 +360,7 @@ private:
 
         m_paramUi = new FaustParamUI(m_root);
         layout->addWidget(m_paramUi, 1);
-        setStatus(QStringLiteral("载入 .dsp 文件以开始"), false);
+        setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "载入 .dsp 文件以开始"), false);
     }
 
     void setStatus(const QString& text, bool isError)
@@ -393,8 +394,8 @@ private:
             "FaustNode", code, 2, argv, "", errorMsg, -1);
         if (!m_factory) {
             const QString err = QString::fromStdString(errorMsg).trimmed();
-            setStatus(QStringLiteral("编译失败: %1")
-                          .arg(err.isEmpty() ? QStringLiteral("未知错误") : err),
+            setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "编译失败: %1")
+                          .arg(err.isEmpty() ? QCoreApplication::translate("Nodes::FaustDataModel", "未知错误") : err),
                       true);
             qWarning() << "FaustNode: JIT compile failed:" << err;
             applyPortCount(PortType::In, 0, true);
@@ -405,7 +406,7 @@ private:
 
         m_dsp = m_factory->createDSPInstance();
         if (!m_dsp) {
-            setStatus(QStringLiteral("编译成功但无法创建 DSP 实例"), true);
+            setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "编译成功但无法创建 DSP 实例"), true);
             qWarning() << "FaustNode: createDSPInstance failed";
             deleteDSPFactory(m_factory);
             m_factory = nullptr;
@@ -442,7 +443,7 @@ private:
         }
 
         const int params = m_paramUi->paramCount();
-        setStatus(QStringLiteral("已加载 %1 · %2 参数 · %3 入 %4 出")
+        setStatus(QCoreApplication::translate("Nodes::FaustDataModel", "已加载 %1 · %2 参数 · %3 入 %4 出")
                       .arg(displayPath).arg(params).arg(inputCount).arg(outputCount), false);
         qDebug() << "FaustNode: loaded" << displayPath
                  << "inputs=" << inputCount

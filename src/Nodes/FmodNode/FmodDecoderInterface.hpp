@@ -15,6 +15,7 @@
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QFormLayout>
 #include <QFrame>
 #include <QHash>
@@ -44,9 +45,9 @@ public:
         auto* pathRow = new QHBoxLayout();
         pathRow->setContentsMargins(0, 0, 0, 0);
         pathRow->setSpacing(4);
-        fileSelectComboBox->setPlaceholderText(QStringLiteral("FMOD Bank folder"));
+        fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::FmodDecoderInterface", "FMOD Bank 目录"));
         pathRow->addWidget(fileSelectComboBox, 1);
-        selectButton->setText(QStringLiteral("Select"));
+        selectButton->setText(QCoreApplication::translate("Nodes::FmodDecoderInterface", "选择"));
         pathRow->addWidget(selectButton);
         root->addLayout(pathRow);
 
@@ -79,7 +80,7 @@ public:
         }
 
         for (const QString& eventPath : events) {
-            auto* playBtn = new QPushButton(QStringLiteral("Play"), paramsHost);
+            auto* playBtn = new QPushButton(QCoreApplication::translate("Nodes::FmodDecoderInterface", "播放"), paramsHost);
             playBtn->setToolTip(eventPath);
             connect(playBtn, &QPushButton::clicked, this, [this, eventPath]() {
                 Q_EMIT eventTriggered(eventPath);

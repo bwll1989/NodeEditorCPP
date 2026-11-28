@@ -14,6 +14,7 @@
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -29,15 +30,15 @@ public:
         layout->setContentsMargins(4, 2, 4, 4);
         layout->setSpacing(6);
 
-        fileSelectComboBox->setPlaceholderText(QStringLiteral("Select .vwf from Media Library"));
+        fileSelectComboBox->setPlaceholderText(QCoreApplication::translate("Nodes::ViosoInterface", "从媒体库选择 .vwf"));
         layout->addWidget(fileSelectComboBox);
 
-        passkeyEdit->setPlaceholderText(QStringLiteral("Passkey (32 hex or 16 bytes, empty=off)"));
+        passkeyEdit->setPlaceholderText(QCoreApplication::translate("Nodes::ViosoInterface", "配对码（32 位十六进制或 16 字节，留空=关闭）"));
         passkeyEdit->setEchoMode(QLineEdit::Password);
         passkeyEdit->setClearButtonEnabled(true);
         layout->addWidget(passkeyEdit);
 
-        reloadButton->setText(QStringLiteral("Reload"));
+        reloadButton->setText(QCoreApplication::translate("Nodes::ViosoInterface", "重新加载"));
         layout->addWidget(reloadButton);
 
         layout->addStretch(1);

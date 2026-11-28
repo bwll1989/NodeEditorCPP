@@ -14,6 +14,7 @@
 #include <QVector>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QCoreApplication>
 
 /**
  * @brief Modbus主机界面类
@@ -38,30 +39,30 @@ public:
         layout->setSpacing(5);
         
         // 创建连接设置组
-        auto connectionGroup = new QGroupBox("连接设置", this);
+        auto connectionGroup = new QGroupBox(QCoreApplication::translate("PLC_ModBusInterface", "连接设置"), this);
         auto connectionLayout = new QGridLayout(connectionGroup);
         
         // IP地址设置
-        connectionLayout->addWidget(new QLabel("IP地址:"), 0, 0, 1, 1);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("PLC_ModBusInterface", "IP地址:")), 0, 0, 1, 1);
         _hostEdit = new QLineEdit("127.0.0.1", this);
         connectionLayout->addWidget(_hostEdit, 0, 1, 1, 1);
         
         // 端口设置
-        connectionLayout->addWidget(new QLabel("端口:"), 1, 0, 1, 1);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("PLC_ModBusInterface", "端口:")), 1, 0, 1, 1);
         _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(8080);  // Modbus TCP默认端口
         connectionLayout->addWidget(_portEdit, 1, 1, 1, 1);
         
         // Server ID设置
-        connectionLayout->addWidget(new QLabel("ServerID(Useless):"), 2, 0, 1, 1);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("PLC_ModBusInterface", "服务器 ID（无效）：")), 2, 0, 1, 1);
         _serverId = new IntDragValueWidget(this);
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1, 1, 1);
 
         // PLC 类型选择
-        connectionLayout->addWidget(new QLabel("PLC类型:"), 3, 0, 1, 1);
+        connectionLayout->addWidget(new QLabel(QCoreApplication::translate("PLC_ModBusInterface", "PLC类型:")), 3, 0, 1, 1);
         _plcTypeCombo = new QComboBox(this);
         _plcTypeCombo->addItem("Beckhoff");
         _plcTypeCombo->addItem("Siemens");
@@ -73,7 +74,7 @@ public:
         // connectionLayout->addWidget(_baseAddressLabel, 4, 1, 1, 1);
 
         // 连接状态指示器
-        _statusLabel = new QPushButton("状态: 未连接", this);
+        _statusLabel = new QPushButton(QCoreApplication::translate("PLC_ModBusInterface", "状态: 未连接"), this);
         _statusLabel->setEnabled(false);
         _statusLabel->setCheckable(true);
         _statusLabel->setFlat(true);
@@ -83,7 +84,7 @@ public:
         layout->addWidget(connectionGroup, 0, 0, 1, 1);
 
         // 创建保持寄存器控制组（Z：保持寄存器）
-        _controlGroup = new QGroupBox("控制寄存器", this);
+        _controlGroup = new QGroupBox(QCoreApplication::translate("PLC_ModBusInterface", "控制寄存器"), this);
         auto controlLayout = new QGridLayout(_controlGroup);
 
         for (int i = 0; i < 32; ++i) {
@@ -99,7 +100,7 @@ public:
         layout->addWidget(_controlGroup, 1, 0, 1, 1);
 
         // 创建状态显示组
-        _statusGroup = new QGroupBox("状态寄存器", this);
+        _statusGroup = new QGroupBox(QCoreApplication::translate("PLC_ModBusInterface", "状态寄存器"), this);
         auto statusLayout = new QGridLayout(_statusGroup);
 
         for (int i = 0; i < 32; ++i) {
@@ -225,7 +226,7 @@ public:
                 // _statusCheckBoxes[i]->setEnabled(true);
             }
             _statusLabel->setChecked(true);
-            _statusLabel->setText("状态: 已连接");
+            _statusLabel->setText(QCoreApplication::translate("PLC_ModBusInterface", "状态: 已连接"));
             _statusLabel->setStyleSheet("color: green; font-weight: bold;");
         } else {
             // 禁用所有控制按钮
@@ -233,7 +234,7 @@ public:
                 _controlButtons[i]->setEnabled(false);
             }
             _statusLabel->setChecked(false);
-            _statusLabel->setText("状态: 未连接");
+            _statusLabel->setText(QCoreApplication::translate("PLC_ModBusInterface", "状态: 未连接"));
             _statusLabel->setStyleSheet("color: red; font-weight: bold;");
         }
     }

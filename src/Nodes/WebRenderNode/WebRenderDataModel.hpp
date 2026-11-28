@@ -47,6 +47,7 @@
 #include <atomic>
 #include <memory>
 #include <opencv2/core/mat.hpp>
+#include <QCoreApplication>
 
 using QtNodes::NodeData;
 using QtNodes::PortIndex;
@@ -591,10 +592,10 @@ private:
         qDebug() << "WebRender: onLoad ok=" << ok;
         if (ok) {
             m_loaded = true;
-            setStatus(QStringLiteral("状态: 已加载 / 渲染中"), true);
+            setStatus(QCoreApplication::translate("Nodes::WebRenderDataModel", "状态: 已加载 / 渲染中"), true);
         } else {
-            m_lastError = QStringLiteral("页面加载失败");
-            setStatus(QStringLiteral("状态: 页面加载失败"), false);
+            m_lastError = QCoreApplication::translate("Nodes::WebRenderDataModel", "页面加载失败");
+            setStatus(QCoreApplication::translate("Nodes::WebRenderDataModel", "状态: 页面加载失败"), false);
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -615,7 +616,7 @@ private:
     void startPipeline()
     {
         m_lastError.clear();
-        setStatus(QStringLiteral("状态: 初始化 CEF…"), false);
+        setStatus(QCoreApplication::translate("Nodes::WebRenderDataModel", "状态: 初始化 CEF…"), false);
         sweepOrphanCache();  // 首节点启动时清扫孤儿缓存（init 后为 no-op）
 
         cefbox::CefRuntime::Settings rs;
@@ -625,7 +626,7 @@ private:
             if (m_widget) {
                 m_widget->setActiveChecked(false);
             }
-            m_lastError = QStringLiteral("CEF 运行时初始化失败");
+            m_lastError = QCoreApplication::translate("Nodes::WebRenderDataModel", "CEF 运行时初始化失败");
             setStatus(m_lastError, false);
             publishInfo();
             Q_EMIT dataUpdated(InfoPort);
@@ -633,7 +634,7 @@ private:
         }
         ensureRuntimeExitHook();
 
-        setStatus(QStringLiteral("状态: 创建离屏浏览器…"), false);
+        setStatus(QCoreApplication::translate("Nodes::WebRenderDataModel", "状态: 创建离屏浏览器…"), false);
         m_loaded = false;
         m_accelFailCount = 0;
         const int vw = qMax(1, qRound(m_width * m_dpiScale));
@@ -674,7 +675,7 @@ private:
             if (m_widget) {
                 m_widget->setActiveChecked(false);
             }
-            m_lastError = QStringLiteral("离屏浏览器创建失败");
+            m_lastError = QCoreApplication::translate("Nodes::WebRenderDataModel", "离屏浏览器创建失败");
             setStatus(m_lastError, false);
             publishInfo();
             Q_EMIT dataUpdated(InfoPort);
@@ -706,7 +707,7 @@ private:
             m_outputBuffer->clear();
         }
         m_lastPushedTimestamp = -1;
-        setStatus(QStringLiteral("状态: 未启动"), false);
+        setStatus(QCoreApplication::translate("Nodes::WebRenderDataModel", "状态: 未启动"), false);
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
     }

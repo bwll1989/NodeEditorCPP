@@ -14,6 +14,7 @@
 
 #include "MissionSequencerInterface.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -393,18 +394,18 @@ namespace Nodes
             status.insert(QStringLiteral("default"), m_stepIndex);
             m_statusOut = std::make_shared<VariableData>(status);
 
-            QString stateText = QStringLiteral("空闲");
+            QString stateText = QCoreApplication::translate("Nodes::MissionSequencerDataModel", "空闲");
             if (!m_enable) {
-                stateText = QStringLiteral("未使能");
+                stateText = QCoreApplication::translate("Nodes::MissionSequencerDataModel", "未使能");
             } else if (m_finished) {
-                stateText = QStringLiteral("全部完成");
+                stateText = QCoreApplication::translate("Nodes::MissionSequencerDataModel", "全部完成");
             } else if (m_running) {
-                stateText = QStringLiteral("执行中 步骤 %1/%2 (%3)")
+                stateText = QCoreApplication::translate("Nodes::MissionSequencerDataModel", "执行中 步骤 %1/%2 (%3)")
                                 .arg(m_stepIndex)
                                 .arg(m_steps.size())
                                 .arg(currentType());
             }
-            widget->setStatusText(QStringLiteral("状态：%1").arg(stateText));
+            widget->setStatusText(QCoreApplication::translate("Nodes::MissionSequencerDataModel", "状态：%1").arg(stateText));
             widget->setCurrentStepHighlight(m_running ? m_stepIndex : -1);
 
             for (int i = 0; i < 6; ++i) {

@@ -23,6 +23,7 @@
 #include "EcpClient.h"
 #include "PluginDefinition.hpp"
 #include "QSysQrcInterface.hpp"
+#include <QCoreApplication>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -85,7 +86,7 @@ namespace Nodes
 
             connect(m_client, &EcpClient::connectedChanged, this, &QSysQrcDataModel::onClientConnected);
             connect(m_client, &EcpClient::socketError, this, [this](const QString &msg) {
-                setStatus(QStringLiteral("错误: %1").arg(msg));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "错误: %1").arg(msg));
             });
             connect(m_client, &EcpClient::lineReceived, this, &QSysQrcDataModel::onEcpLine);
 
@@ -328,10 +329,10 @@ namespace Nodes
                 if (widget) {
                     widget->designLabel->setText(QStringLiteral("Design: —"));
                 }
-                setStatus(QStringLiteral("已断开"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已断开"));
                 return;
             }
-            setStatus(QStringLiteral("已连接，初始化…"));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已连接，初始化…"));
             m_client->sendLine(QStringLiteral("sg"));
             QTimer::singleShot(200, this, &QSysQrcDataModel::maybeLoginAndSetupChangeGroup);
         }
@@ -348,8 +349,9 @@ namespace Nodes
             const QString cmd = tok.at(0);
 
             if (cmd == QLatin1String("sr") && tok.size() >= 5) {
+                // 【i18n】与 QSysQrcInterface 初始文案 tr("设计: —") 同一显示链
                 widget->designLabel->setText(
-                    QStringLiteral("Design: %1 | primary=%2 active=%3")
+                    QCoreApplication::translate("Nodes::QSysQrcDataModel", "设计: %1 | primary=%2 active=%3")
                         .arg(tok.at(1))
                         .arg(tok.at(3), tok.at(4)));
                 return;
@@ -359,12 +361,12 @@ namespace Nodes
                 return;
             }
             if (cmd == QLatin1String("login_success")) {
-                setStatus(QStringLiteral("登录成功"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "登录成功"));
                 setupChangeGroup();
                 return;
             }
             if (cmd == QLatin1String("login_failed")) {
-                setStatus(QStringLiteral("登录失败"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "登录失败"));
                 return;
             }
             if (cmd == QLatin1String("cv") && tok.size() >= 5) {
@@ -390,19 +392,19 @@ namespace Nodes
                 return;
             }
             if (cmd == QLatin1String("bad_id") && tok.size() >= 2) {
-                setStatus(QStringLiteral("未知控件: %1").arg(tok.at(1)));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "未知控件: %1").arg(tok.at(1)));
                 return;
             }
             if (cmd == QLatin1String("bad_command")) {
-                setStatus(QStringLiteral("命令错误: %1").arg(line));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "命令错误: %1").arg(line));
                 return;
             }
             if (cmd == QLatin1String("core_not_active")) {
-                setStatus(QStringLiteral("Core 非 Active（冗余待机）"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "Core 非 Active（冗余待机）"));
                 return;
             }
             if (cmd == QLatin1String("rc")) {
-                setStatus(QStringLiteral("Core 关闭连接"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "Core 关闭连接"));
                 return;
             }
         }
@@ -415,16 +417,16 @@ namespace Nodes
             syncParametersFromWidget();
             applyEndpoint();
             if (m_host.isEmpty()) {
-                setStatus(QStringLiteral("请填写主机"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "请填写主机"));
                 if (widget) {
                     widget->updateConnectionStatus(false);
                 }
                 return;
             }
             if (m_controls.isEmpty()) {
-                setStatus(QStringLiteral("请先选择 Named Controls XML"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "请先选择 Named Controls XML"));
             }
-            setStatus(QStringLiteral("正在连接 %1:%2 …").arg(m_host).arg(kEcpPort));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "正在连接 %1:%2 …").arg(m_host).arg(kEcpPort));
             m_client->connectToHost();
         }
 
@@ -437,7 +439,7 @@ namespace Nodes
             m_client->disconnectFromHost();
             m_client->setAutoReconnect(true);
             m_changeGroupReady = false;
-            setStatus(QStringLiteral("已请求断开"));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已请求断开"));
         }
 
         void onXmlSelected(const QString &text)
@@ -507,7 +509,7 @@ namespace Nodes
             if (m_shuttingDown || !widget) {
                 return;
             }
-            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+            widget->statusLabel->setText(QCoreApplication::translate("Nodes::QSysQrcDataModel", "状态: %1").arg(text));
         }
 
         void setConnected(bool connected)
@@ -555,13 +557,13 @@ namespace Nodes
         {
             const QString fullPath = resolveMediaPath(relativeOrAbsolute);
             if (fullPath.isEmpty()) {
-                setStatus(QStringLiteral("XML 路径为空"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "XML 路径为空"));
                 return false;
             }
 
             QFile file(fullPath);
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                setStatus(QStringLiteral("无法打开 XML: %1").arg(file.errorString()));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "无法打开 XML: %1").arg(file.errorString()));
                 return false;
             }
 
@@ -594,7 +596,7 @@ namespace Nodes
                 parsed.push_back(c);
             }
             if (xml.hasError()) {
-                setStatus(QStringLiteral("XML 解析错误: %1").arg(xml.errorString()));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "XML 解析错误: %1").arg(xml.errorString()));
                 return false;
             }
 
@@ -615,7 +617,7 @@ namespace Nodes
             syncPortsFromControls(notifyPorts);
             rebuildControlList();
             publishAllOutputs();
-            setStatus(QStringLiteral("已加载 %1 个 Named Control").arg(m_controls.size()));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已加载 %1 个 Named Control").arg(m_controls.size()));
 
             if (notifyPorts && m_client->isConnected()) {
                 setupChangeGroup();
@@ -699,7 +701,7 @@ namespace Nodes
         {
             syncParametersFromWidget();
             if (m_userName.trimmed().isEmpty()) {
-                setStatus(QStringLiteral("需要登录，请填写用户/PIN"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "需要登录，请填写用户/PIN"));
                 return;
             }
             m_client->sendLine(QStringLiteral("login %1 %2")
@@ -713,7 +715,7 @@ namespace Nodes
                 return;
             }
             if (m_controls.isEmpty()) {
-                setStatus(QStringLiteral("已连接，但尚未加载 XML"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已连接，但尚未加载 XML"));
                 return;
             }
 
@@ -728,7 +730,7 @@ namespace Nodes
             m_client->sendLine(QStringLiteral("cgi %1").arg(kChangeGroupId));
             m_client->sendLine(QStringLiteral("cgp %1").arg(kChangeGroupId));
             m_changeGroupReady = true;
-            setStatus(QStringLiteral("已订阅 %1 个 Named Control").arg(m_controls.size()));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已订阅 %1 个 Named Control").arg(m_controls.size()));
         }
 
         void applyControlValue(const QString &id,
@@ -798,13 +800,13 @@ namespace Nodes
                 return;
             }
             if (!m_client->isConnected()) {
-                setStatus(QStringLiteral("未连接，无法写入"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "未连接，无法写入"));
                 return;
             }
 
             const NamedControl &c = m_controls[index];
             if (c.mode.compare(QLatin1String("R"), Qt::CaseInsensitive) == 0) {
-                setStatus(QStringLiteral("%1 为只读").arg(c.id));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "%1 为只读").arg(c.id));
                 return;
             }
 
@@ -828,17 +830,17 @@ namespace Nodes
                     d = raw.toString().toDouble(&ok);
                 }
                 if (!ok) {
-                    setStatus(QStringLiteral("无法将输入转为数值: %1").arg(c.id));
+                    setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "无法将输入转为数值: %1").arg(c.id));
                     return;
                 }
                 line = QStringLiteral("csv %1 %2").arg(id).arg(d, 0, 'g', 12);
             }
 
             if (!m_client->sendLine(line)) {
-                setStatus(QStringLiteral("发送失败"));
+                setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "发送失败"));
                 return;
             }
-            setStatus(QStringLiteral("已写入 [%1] %2").arg(index).arg(c.id));
+            setStatus(QCoreApplication::translate("Nodes::QSysQrcDataModel", "已写入 [%1] %2").arg(index).arg(c.id));
         }
 
         void ensureCaches()

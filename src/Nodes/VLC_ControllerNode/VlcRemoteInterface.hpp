@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace Nodes
 {
@@ -41,32 +42,32 @@ namespace Nodes
             portSpinBox->setRange(1, 65535);
             portSpinBox->setValue(8080);
             passwordEdit->setEchoMode(QLineEdit::Password);
-            passwordEdit->setPlaceholderText(QStringLiteral("与 VLC Lua HTTP 密码一致"));
+            passwordEdit->setPlaceholderText(QCoreApplication::translate("Nodes::VlcRemoteInterface", "与 VLC Lua HTTP 密码一致"));
 
             indexSpinBox->setMinimum(0);
             indexSpinBox->setMaximum(9999);
             indexSpinBox->setValue(0);
-            indexSpinBox->setToolTip(QStringLiteral("播放列表排序号（从 0 起）"));
+            indexSpinBox->setToolTip(QCoreApplication::translate("Nodes::VlcRemoteInterface", "播放列表排序号（从 0 起）"));
 
-            playButton->setText(QStringLiteral("播放"));
-            playButton->setToolTip(QStringLiteral("按当前 Index 切换播放"));
-            stopButton->setText(QStringLiteral("停止"));
-            stopButton->setToolTip(QStringLiteral("停止当前播放（不影响 Index）"));
+            playButton->setText(QCoreApplication::translate("Nodes::VlcRemoteInterface", "播放"));
+            playButton->setToolTip(QCoreApplication::translate("Nodes::VlcRemoteInterface", "按当前 Index 切换播放"));
+            stopButton->setText(QCoreApplication::translate("Nodes::VlcRemoteInterface", "停止"));
+            stopButton->setToolTip(QCoreApplication::translate("Nodes::VlcRemoteInterface", "停止当前播放（不影响 Index）"));
 
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
-            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setText(QCoreApplication::translate("Nodes::VlcRemoteInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
             statusLabel->setWordWrap(true);
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            statusLabel->setText(QStringLiteral("状态: —"));
+            statusLabel->setText(QCoreApplication::translate("Nodes::VlcRemoteInterface", "状态: —"));
 
-            addRow(QStringLiteral("主机:"), hostEdit);
-            addRow(QStringLiteral("端口:"), portSpinBox);
-            addRow(QStringLiteral("密码:"), passwordEdit);
-            addRow(QStringLiteral("Index:"), indexSpinBox);
+            addRow(QCoreApplication::translate("Nodes::VlcRemoteInterface", "主机:"), hostEdit);
+            addRow(QCoreApplication::translate("Nodes::VlcRemoteInterface", "端口:"), portSpinBox);
+            addRow(QCoreApplication::translate("Nodes::VlcRemoteInterface", "密码:"), passwordEdit);
+            addRow(QCoreApplication::translate("Nodes::VlcRemoteInterface", "序号："), indexSpinBox);
 
             auto *actionRow = new QWidget();
             auto *actionLayout = new QHBoxLayout(actionRow);
@@ -79,7 +80,7 @@ namespace Nodes
             layout->addWidget(connectionLabel);
             layout->addWidget(statusLabel);
 
-            layout->addWidget(new QLabel(QStringLiteral("播放列表:")));
+            layout->addWidget(new QLabel(QCoreApplication::translate("Nodes::VlcRemoteInterface", "播放列表:")));
             playlistWidget->setMinimumHeight(120);
             layout->addWidget(playlistWidget, 1);
 
@@ -90,8 +91,8 @@ namespace Nodes
         {
             connectionLabel->setChecked(connected);
             connectionLabel->setText(connected
-                                         ? QStringLiteral("连接: 已连接")
-                                         : QStringLiteral("连接: 未连接"));
+                                         ? QCoreApplication::translate("Nodes::VlcRemoteInterface", "连接: 已连接")
+                                         : QCoreApplication::translate("Nodes::VlcRemoteInterface", "连接: 未连接"));
             connectionLabel->setStyleSheet(connected
                                                ? QStringLiteral("color: green; font-weight: bold;")
                                                : QStringLiteral("color: red; font-weight: bold;"));

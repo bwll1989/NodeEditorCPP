@@ -47,12 +47,12 @@ void DefaultTimeLineToolBar::createActions()
     // 播放/暂停切换动作（空格快捷键；图标随状态切换）
     m_playAction = new QAction(this);
     m_playAction->setIcon(QIcon(":/icons/icons/play.png"));
-    m_playAction->setToolTip(tr("Play"));
+    m_playAction->setToolTip(tr("播放"));
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     connect(m_playAction, &QAction::triggered, [this]() {
         m_isPlaying = !m_isPlaying;
         m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
-        m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+        m_playAction->setToolTip(m_isPlaying ? tr("暂停") : tr("播放"));
         if (m_isPlaying) {
             emit playClicked();
         } else {
@@ -63,12 +63,12 @@ void DefaultTimeLineToolBar::createActions()
     // 停止动作
     m_stopAction = new QAction(this);
     m_stopAction->setIcon(QIcon(":/icons/icons/stop.png"));
-    m_stopAction->setToolTip(tr("Stop"));
+    m_stopAction->setToolTip(tr("停止"));
     connect(m_stopAction, &QAction::triggered, [this]() {
         if (m_isPlaying) {
             m_isPlaying = false;
             m_playAction->setIcon(QIcon(":/icons/icons/play.png"));
-            m_playAction->setToolTip(tr("Play"));
+            m_playAction->setToolTip(tr("播放"));
         }
         emit stopClicked();
     });
@@ -80,14 +80,14 @@ void DefaultTimeLineToolBar::createActions()
     // 的 :/tlnode/icons/cursor.png 不存在，实为空图标——本版纠正）。
     m_currentFrameAction = new QAction(this);
     m_currentFrameAction->setIcon(QIcon(":/icons/icons/cursor.png"));
-    m_currentFrameAction->setToolTip(tr("Current Frame (Ctrl+拖拽绑定地址)"));
+    m_currentFrameAction->setToolTip(tr("当前帧 (Ctrl+拖拽绑定地址)"));
 
     // 【循环 2026-11-16 接线回归】checkable 开关（repeat.png 旧资源复用）：
     // 点击翻转 → loopToggled(宿主 TimelinePlaybackController 接管：播放头
     // 到头回零续播 + /loop OSC 反馈)；外部命令经 setLoopState 回显无回环。
     m_loopAction = new QAction(this);
     m_loopAction->setIcon(QIcon(":/icons/icons/repeat.png"));
-    m_loopAction->setToolTip(tr("Loop"));
+    m_loopAction->setToolTip(tr("循环"));
     m_loopAction->setCheckable(true);
     connect(m_loopAction, &QAction::triggered, [this]() {
         m_isLooping = m_loopAction->isChecked();
@@ -99,7 +99,7 @@ void DefaultTimeLineToolBar::createActions()
     // 轨道列表右键菜单同接口；add.png 资源与该菜单共用）。
     m_addTrackAction = new QAction(this);
     m_addTrackAction->setIcon(QIcon(":/icons/icons/add.png"));
-    m_addTrackAction->setToolTip(tr("Add Track"));
+    m_addTrackAction->setToolTip(tr("添加轨道"));
     connect(m_addTrackAction, &QAction::triggered, this,
             [this]() { emit addTrackClicked(); });
 }
@@ -138,7 +138,7 @@ void DefaultTimeLineToolBar::setPlaybackState(bool isPlaying)
 {
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
-    m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+    m_playAction->setToolTip(m_isPlaying ? tr("暂停") : tr("播放"));
 }
 
 void DefaultTimeLineToolBar::setLoopState(bool on)

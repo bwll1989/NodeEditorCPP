@@ -5,6 +5,7 @@
 #pragma once
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -75,12 +76,14 @@ public:
         : QDialog(parent)
     {
         const QString product = AppConstants::PRODUCT_NAME;
+        // 【i18n】本类无 Q_OBJECT，tr() 会落到 QObject context 导致 .qm 查询 MISS，
+        // 统一改用 QCoreApplication::translate（context=AboutWidget）。
         const QString edition = LicenseManager::isAuthorized()
-                                    ? QStringLiteral("Advanced")
-                                    : QStringLiteral("Basic");
+                                    ? QCoreApplication::translate("AboutWidget", "高级版")
+                                    : QCoreApplication::translate("AboutWidget", "基础版");
         const QString version = QApplication::applicationVersion();
 
-        setWindowTitle(tr("About %1").arg(product));
+        setWindowTitle(QCoreApplication::translate("AboutWidget", "关于 %1").arg(product));
         setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
         setMinimumSize(720, 480);
         resize(780, 560);
@@ -107,7 +110,7 @@ public:
         infoCol->setSpacing(6);
         infoCol->setContentsMargins(0, 0, 0, 0);
 
-        auto *titleLabel = new QLabel(tr("About %1").arg(product), this);
+        auto *titleLabel = new QLabel(QCoreApplication::translate("AboutWidget", "关于 %1").arg(product), this);
         {
             QFont font = titleLabel->font();
             font.setPointSizeF(font.pointSizeF() + 5);
@@ -116,14 +119,15 @@ public:
         }
 
         auto *versionLabel = makeMutedLabel(
-            tr("本程序为 %1 %2 Version %3。")
+            QCoreApplication::translate("AboutWidget", "本程序为 %1 %2 Version %3。")
                 .arg(product, edition, version),
             this);
 
         auto *frameworkLabel = makeMutedLabel(AppConstants::FILE_DESCRIPTION, this);
 
         auto *introLabel = new QLabel(
-            tr("%1 是面向演出、展陈与现场控制的可视化节点编排软件，"
+            QCoreApplication::translate("AboutWidget",
+               "%1 是面向演出、展陈与现场控制的可视化节点编排软件，"
                "将数据流编辑器、时间轴与外部协议控制整合在同一工程中，"
                "用连线方式搭建灯光、音视频、设备通信与自动化逻辑。")
                 .arg(product),
@@ -169,7 +173,7 @@ public:
         auto *copyrightLabel = makeMutedLabel(AppConstants::LEGAL_COPYRIGHT, this);
         footer->addWidget(copyrightLabel, 1);
 
-        auto *okButton = new QPushButton(tr("OK"), this);
+        auto *okButton = new QPushButton(QCoreApplication::translate("AboutWidget", "确定"), this);
         okButton->setDefault(true);
         okButton->setMinimumWidth(96);
         connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
@@ -209,7 +213,7 @@ private:
 #endif
         } else {
             textBrowser->setPlainText(
-                tr("无法打开文件：%1\n错误：%2")
+                QCoreApplication::translate("AboutWidget", "无法打开文件：%1\n错误：%2")
                     .arg(filePath, file.errorString()));
         }
     }

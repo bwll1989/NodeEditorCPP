@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QJsonArray>
+#include <QCoreApplication>
 #include "TimelineEngine.h"
 #include <QPushButton>
 
@@ -127,7 +128,7 @@ namespace Clips
          */
         void updateFileInfo(const QString& fileName, double duration, double fps,int videoHeight) {
             QFileInfo fileInfo(fileName);
-            videoInfoLabel->setText(QString("时长: %1s, 帧率: %2fps, 域数量: %3")
+            videoInfoLabel->setText(QCoreApplication::translate("Clips::ArtnetClipModel", "时长: %1s, 帧率: %2fps, 域数量: %3")
                                    .arg(duration, 0, 'f', 1).arg(fps, 0, 'f', 1).arg(videoHeight));
         }
 

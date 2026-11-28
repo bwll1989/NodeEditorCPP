@@ -7,6 +7,7 @@
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -24,7 +25,7 @@ namespace Nodes
         // 独立顶层窗口（与 Curve 节点的编辑器一致：parent=nullptr + Qt::Window）。
         // 若以嵌入面板为父，QDialog 会贴着节点弹出并随主窗口联动，视觉上像内嵌在节点图里。
         setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint);
-        setWindowTitle(QStringLiteral("二维曲线编辑器 - Curve2D"));
+        setWindowTitle(QCoreApplication::translate("Nodes::Curve2DDialog", "二维曲线编辑器 - Curve2D"));
         setAttribute(Qt::WA_DeleteOnClose, false);
         setAttribute(Qt::WA_QuitOnClose, false);
         resize(760, 500);
@@ -34,29 +35,29 @@ namespace Nodes
         layout->setSpacing(4);
 
         auto* tools = new QHBoxLayout();
-        m_dialogPlayButton = new QPushButton(QStringLiteral("启动"), this);
+        m_dialogPlayButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "启动"), this);
         m_dialogPlayButton->setCheckable(true);
         m_dialogPlayButton->setChecked(m_model->play());
         if (m_model->play()) {
-            m_dialogPlayButton->setText(QStringLiteral("停止"));
+            m_dialogPlayButton->setText(QCoreApplication::translate("Nodes::Curve2DDialog", "停止"));
         }
-        auto* addCurveButton = new QPushButton(QStringLiteral("+曲线"), this);
-        addCurveButton->setToolTip(QStringLiteral("新增一条曲线（输出端口 +1）"));
-        auto* removeCurveButton = new QPushButton(QStringLiteral("-曲线"), this);
-        removeCurveButton->setToolTip(QStringLiteral("删除当前选中的曲线（至少保留一条）"));
-        m_closedBox = new QCheckBox(QStringLiteral("闭合"), this);
-        m_closedBox->setToolTip(QStringLiteral("闭合/开放当前选中的曲线"));
-        auto* addButton = new QPushButton(QStringLiteral("添加点"), this);
-        auto* removeButton = new QPushButton(QStringLiteral("删除点"), this);
-        auto* frameButton = new QPushButton(QStringLiteral("适应视图"), this);
-        auto* periodLabel = new QLabel(QStringLiteral("周期"), this);
+        auto* addCurveButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "+曲线"), this);
+        addCurveButton->setToolTip(QCoreApplication::translate("Nodes::Curve2DDialog", "新增一条曲线（输出端口 +1）"));
+        auto* removeCurveButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "-曲线"), this);
+        removeCurveButton->setToolTip(QCoreApplication::translate("Nodes::Curve2DDialog", "删除当前选中的曲线（至少保留一条）"));
+        m_closedBox = new QCheckBox(QCoreApplication::translate("Nodes::Curve2DDialog", "闭合"), this);
+        m_closedBox->setToolTip(QCoreApplication::translate("Nodes::Curve2DDialog", "闭合/开放当前选中的曲线"));
+        auto* addButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "添加点"), this);
+        auto* removeButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "删除点"), this);
+        auto* frameButton = new QPushButton(QCoreApplication::translate("Nodes::Curve2DDialog", "适应视图"), this);
+        auto* periodLabel = new QLabel(QCoreApplication::translate("Nodes::Curve2DDialog", "周期"), this);
         m_periodSpin = new FloatDragValueWidget(this);
         m_periodSpin->setRange(0.1, 3600.0);
         m_periodSpin->setDecimals(2);
         m_periodSpin->setSingleStep(0.1);
         m_periodSpin->setSuffix(QStringLiteral(" s"));
         m_periodSpin->setValue(m_model->period());
-        auto* rateLabel = new QLabel(QStringLiteral("采样率"), this);
+        auto* rateLabel = new QLabel(QCoreApplication::translate("Nodes::Curve2DDialog", "采样率"), this);
         m_rateSpin = new IntDragValueWidget(this);
         m_rateSpin->setRange(1, 100);
         m_rateSpin->setSuffix(QStringLiteral(" Hz"));
@@ -160,7 +161,7 @@ namespace Nodes
         connect(m_model, &Curve2DDataModel::playChanged, this, [this](bool playing) {
             const QSignalBlocker blocker(m_dialogPlayButton);
             m_dialogPlayButton->setChecked(playing);
-            m_dialogPlayButton->setText(playing ? QStringLiteral("停止") : QStringLiteral("启动"));
+            m_dialogPlayButton->setText(playing ? QCoreApplication::translate("Nodes::Curve2DDialog", "停止") : QCoreApplication::translate("Nodes::Curve2DDialog", "启动"));
         });
 
         syncCurves();
@@ -200,8 +201,8 @@ namespace Nodes
         m_y->setEnabled(enabled);
         if (m_pointLabel) {
             m_pointLabel->setText(enabled
-                ? QStringLiteral("点 %1").arg(index + 1)
-                : QStringLiteral("未选择"));
+                ? QCoreApplication::translate("Nodes::Curve2DDialog", "点 %1").arg(index + 1)
+                : QCoreApplication::translate("Nodes::Curve2DDialog", "未选择"));
         }
         if (!enabled) {
             return;

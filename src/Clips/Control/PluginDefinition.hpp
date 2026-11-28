@@ -48,12 +48,12 @@ public:
 
     // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
     /// 页 3 页签名（原宿主 kindPageName 表下放）
-    QString clipDisplayName() const override { return QStringLiteral("指令"); }
+    QString clipDisplayName() const override { return tr("指令"); }
     /// 无媒体绑定语义：指令表在「指令」专属页编辑（媒体区隐藏 +
     /// 绑定行说明文案，原宿主硬编码文案下放）
     bool hasMediaBinding() const override { return false; }
     QString bindingHint() const override {
-        return QStringLiteral("（指令片段无需媒体文件）");
+        return tr("（指令片段无需媒体文件）");
     }
 
     // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----

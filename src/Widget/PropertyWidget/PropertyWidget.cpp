@@ -88,10 +88,10 @@ void PropertyWidget::setPortTabWidget(QWidget *widget)
 
 void PropertyWidget::initLayout() {
 
-    emptyProperty=new QLabel(QStringLiteral("无可编辑属性"));
+    emptyProperty=new QLabel(tr("无可编辑属性"));
     emptyProperty->setAlignment(Qt::AlignCenter);
 
-    emptyPortEdit=new QLabel(QStringLiteral("端口不可编辑"));
+    emptyPortEdit=new QLabel(tr("端口不可编辑"));
     emptyPortEdit->setAlignment(Qt::AlignCenter);
 
     lay=new QVBoxLayout(this);
@@ -118,8 +118,8 @@ void PropertyWidget::initLayout() {
     _portStack->addWidget(emptyPortEdit);
     _portStack->setCurrentWidget(emptyPortEdit);
 
-    _tabWidget->addTab(_propertyPage, QStringLiteral("属性面板"));
-    _tabWidget->addTab(_portPage, QStringLiteral("端口编辑"));
+    _tabWidget->addTab(_propertyPage, tr("属性面板"));
+    _tabWidget->addTab(_portPage, tr("端口编辑"));
     _tabWidget->tabBar()->setVisible(_tabWidget->count() > 1);
     // _tabWidget->setDocumentMode(true);
     lay->addWidget(_tabWidget, 1);
@@ -168,7 +168,7 @@ void PropertyWidget::update(const QtNodes::NodeId nodeId) {
         if (!_tabWidget->indexOf(_portPage) != -1) {
         }
         if (_tabWidget->indexOf(_portPage) == -1) {
-            _tabWidget->addTab(_portPage, QStringLiteral("端口编辑"));
+            _tabWidget->addTab(_portPage, tr("端口编辑"));
         }
 
         if (!_portEditWidget || _currentNodeId != nodeId) {

@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QSignalBlocker>
 #include <QtGlobal>
+#include <QCoreApplication>
 
 using namespace Nodes;
 
@@ -239,15 +240,15 @@ AudioRouterInterface::AudioRouterInterface(int inputCount, int outputCount, QWid
     mMenuButton->setPopupMode(QToolButton::InstantPopup);
     mMenuButton->setFixedSize(24, 24);
     mMenuButton->setFocusPolicy(Qt::NoFocus);
-    mMenuButton->setToolTip(QStringLiteral("路由操作"));
+    mMenuButton->setToolTip(QCoreApplication::translate("Nodes::AudioRouterInterface", "路由操作"));
 
     auto *menu = new QMenu(mMenuButton);
     QAction *identityAct = menu->addAction(makeIdentityIcon(iconColor),
-                                           QStringLiteral("1:1 直通"));
-    identityAct->setToolTip(QStringLiteral("对角线接通，其余断开"));
+                                           QCoreApplication::translate("Nodes::AudioRouterInterface", "1:1 直通"));
+    identityAct->setToolTip(QCoreApplication::translate("Nodes::AudioRouterInterface", "对角线接通，其余断开"));
     QAction *clearAct = menu->addAction(QIcon(QStringLiteral(":/icons/icons/clear.png")),
-                                        QStringLiteral("全部断开"));
-    clearAct->setToolTip(QStringLiteral("清除所有路由"));
+                                        QCoreApplication::translate("Nodes::AudioRouterInterface", "全部断开"));
+    clearAct->setToolTip(QCoreApplication::translate("Nodes::AudioRouterInterface", "清除所有路由"));
     mMenuButton->setMenu(menu);
 
     connect(identityAct, &QAction::triggered, mRouterWidget, &RouterMatrixWidget::setIdentity);
